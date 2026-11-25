@@ -89,11 +89,13 @@ class Settings:
     site_min_ws: float = 0.5                        # [choice] ignore calm readings in ln U
     site_min_stations: int = 12                     # [choice] hours with >= 12 of 17 stations reporting
     site_iters: int = 15
-    site_nsec: int = 8                              # [choice] direction sectors of the site factors; round 7: 4-16 equivalent (round 6: 16)
+    site_nsec: int = 1                              # [choice] 1 = one factor per station (joint SE/NO model); 8/16 sectors
+                                                    # give no gain in Sweden and overfit in Norway (round 6: 16)
 
     # ---------------- exposure model (step 4-5)
     tree_near_radius: int = 100                     # [choice] near trees within R m upwind; round 7: 50-100 m (round 6: 200)
-    tree_far_radius: int | None = 1000              # [choice] forest fraction within 1 km upwind; None = off (round 6)
+    tree_far_radius: int | None = 1000              # [choice] landscape forest fraction within 1 km; None = off (round 6)
+    tree_far_half: float = 180.0                    # [choice] all directions (Norway: better than the upwind sector)
     tree_dir_radius: int = 200                      # [choice] tree share used by the direction (channelling) model
     use_stability: bool = False                     # dT = T_surface - T_air at the TrV station; off: CV gain ~0.002 m/s and
                                                     # its coefficient changes sign between time blocks (round 7, 287 h)

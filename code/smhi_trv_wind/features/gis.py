@@ -157,7 +157,7 @@ def sector_tables(cfg: Settings) -> dict[str, pd.DataFrame]:
                    tree_trv=piv(Vv, "trv", f"tree_R{cfg.tree_near_radius}_H22.5"),
                    tree_dir_trv=piv(Vv, "trv", f"tree_R{cfg.tree_dir_radius}_H22.5"))
         if cfg.tree_far_radius:
-            out["tree_far_trv"] = piv(Vv, "trv", f"tree_R{cfg.tree_far_radius}_H22.5")
+            out["tree_far_trv"] = piv(Vv, "trv", f"tree_R{cfg.tree_far_radius}_H{cfg.tree_far_half:g}")
         return out
     Z, T, E = rd(cfg.paths.feat_z0), rd(cfg.paths.feat_tree), rd(cfg.paths.feat_edge)
     piv = lambda D, src, col: D[D.src == src].pivot(index="id", columns="dir", values=col)
@@ -175,5 +175,5 @@ def sector_tables(cfg: Settings) -> dict[str, pd.DataFrame]:
     out["tree_trv"] = piv(Vv, "trv", f"tree_R{cfg.tree_near_radius}_H22.5")
     out["tree_dir_trv"] = piv(Vv, "trv", f"tree_R{cfg.tree_dir_radius}_H22.5")
     if cfg.tree_far_radius:
-        out["tree_far_trv"] = piv(Vv, "trv", f"tree_R{cfg.tree_far_radius}_H22.5")
+        out["tree_far_trv"] = piv(Vv, "trv", f"tree_R{cfg.tree_far_radius}_H{cfg.tree_far_half:g}")
     return out

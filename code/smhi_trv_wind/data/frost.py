@@ -38,8 +38,23 @@ def _hourly(root: str) -> pd.DataFrame:
         d = pd.concat([p for p in parts if len(p)], ignore_index=True)
         d = d.rename(columns={"wind_speed": "ws", "wind_from_direction": "wd"})
         d = d.drop_duplicates(["id", "time"]).sort_values(["id", "time"])
+        d = qc(d)
         d.to_parquet(f)
     return pd.read_parquet(f)
+
+
+def qc(d: pd.DataFrame, max_ws: float = 60.0, run_nonzero: int = 6, run_zero: int = 12) -> pd.DataFrame:
+    """remove implausible speeds and stuck sensors: the same value repeated in >= run_nonzero consecutive hours
+    (>= run_zero hours for exactly 0, which also occurs with icing); direction is removed with the speed"""
+    d = d.copy()
+    d.loc[(d.ws < 0) | (d.ws > max_ws), "ws"] = np.nan
+    new_run = (d.id != d.id.shift()) | (d.ws != d.ws.shift()) | (d.time - d.time.shift() != pd.Timedelta("1h"))
+    run_id = new_run.cumsum()
+    run_len = d.groupby(run_id).ws.transform("size")
+    stuck = ((d.ws > 0) & (run_len >= run_nonzero)) | ((d.ws == 0) & (run_len >= run_zero))
+    d.loc[stuck, ["ws", "wd"]] = np.nan
+    d.attrs["qc_removed"] = int(stuck.sum())
+    return d
 
 
 def _matrices(cfg: Settings, index: pd.DatetimeIndex, ids) -> tuple[pd.DataFrame, pd.DataFrame]:

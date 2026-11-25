@@ -80,6 +80,11 @@ class Engine:
         else:                                   # terrain indices only exist for Sweden
             empty = pd.DataFrame(np.nan, index=self.TM.index, columns=np.arange(0, 360, 22.5))
             self.terrain = {c: empty for c in ("sx", "tpi_1km", "h_mid")}
+        ft = cfg.paths.root / "features_terrain.parquet"     # Sx, TPI, relief from the terrain model (Norway)
+        self.Tt = {}
+        if ft.exists():
+            TT = pd.read_parquet(ft); TT["id"] = TT.id.astype(str); TT = TT[TT.src == "trv"]
+            self.Tt = {c: TT.pivot(index="id", columns="dir", values=c) for c in TT.columns if c not in ("src", "id", "dir")}
         E = pd.read_parquet(cfg.paths.feat_edge); E["id"] = E.id.astype(str)
         self.lnxh = np.log(E[E.src == "trv"].pivot(index="id", columns="dir", values="xh_edge").clip(*cfg.xh_clip))
         self.road = trv_data.road_bearing(cfg).reindex(self.TM.index).values
@@ -150,7 +155,8 @@ class Engine:
         return c
 
     # ---------------------------------------------------------------- evaluation
-    def run(self, sp: Spec, keep_rows: bool = False) -> dict:
+    def run(self, sp: Spec, keep_rows: bool = False, fixed: dict | None = None, groups: dict | None = None) -> dict:
+        """fixed = dict(b=..., d=..., smear=...) applies given coefficients to every station (transfer test, no fitting)"""
         cfg = dataclasses.replace(self.cfg, z_blend=sp.z_blend)
         c = self.site_factors(sp)
         lzs = self._smhi_lnz0(sp, self.sws.columns)
@@ -179,18 +185,21 @@ class Engine:
         cols.append(lnU)
         if sp.interaction:
             cols.append(lnU * tr)
-        cr = np.abs(np.sin(np.radians(alpha)))
-        dT = self.dT[:, pj]
-        ext = dict(cross=cr, cross_tree=cr * tr, stab=np.nan_to_num(dT), stab_tree=np.nan_to_num(dT) * tr,
-                   night=self.night[:, None] * np.ones_like(U3), night_tree=self.night[:, None] * tr,
-                   sx=self._trv_sector(self.terrain["sx"])[:, pj], tpi=self._trv_sector(self.terrain["tpi_1km"])[:, pj],
-                   hmid=self._trv_sector(self.terrain["h_mid"])[:, pj])
+        cr = lambda: np.abs(np.sin(np.radians(alpha)))
+        dT = lambda: np.nan_to_num(self.dT[:, pj])
+        ext = dict(cross=lambda: cr(), cross_tree=lambda: cr() * tr, stab=dT, stab_tree=lambda: dT() * tr,
+                   night=lambda: self.night[:, None] * np.ones_like(U3), night_tree=lambda: self.night[:, None] * tr,
+                   sx=lambda: self._trv_sector(self.terrain["sx"])[:, pj], tpi=lambda: self._trv_sector(self.terrain["tpi_1km"])[:, pj],
+                   hmid=lambda: self._trv_sector(self.terrain["h_mid"])[:, pj])            # built only when requested
         for e in sp.extra:
             if e.startswith("v:"):
                 cols.append(np.nan_to_num(self._trv_sector(self.Vt[e[2:]])[:, pj]))
+            elif e.startswith("t:"):                                   # terrain feature, e.g. t:sx_300, t:tpi_500
+                cols.append(np.nan_to_num(self._trv_sector(self.Tt[e[2:]])[:, pj]))
             elif e != "lnU_pair":
-                cols.append(np.nan_to_num(ext[e]))
-        X = np.stack([np.nan_to_num(x) for x in cols], -1)                   # [hour x pair x p]
+                cols.append(np.nan_to_num(ext[e]()))
+        X = np.stack([np.nan_to_num(x).astype(np.float32) for x in cols], -1)   # [hour x pair x p], float32 to save memory
+        del cols
         y = np.log(np.clip(ws, 0.1, None) / np.clip(U3, 0.1, None))
         A = self.A[:, None]
         fit = A & (U0 >= sp.fit_min) & (ws > 0.2) & np.isfinite(U3) & np.isfinite(tr) & np.isfinite(lnxh[:, pj]) & np.isfinite(ws)
@@ -208,11 +217,17 @@ class Engine:
         DtD = np.zeros((n_t, 2, 2)); Dty = np.zeros((n_t, 2))
         np.add.at(DtD, jdf, Xdf[:, :, None] * Xdf[:, None, :]); np.add.at(Dty, jdf, Xdf * ddf[:, None])
         SX, Sy, SD, Sd = XtX.sum(0), Xty.sum(0), DtD.sum(0), Dty.sum(0)
-        B = np.stack([np.linalg.solve(SX - XtX[j] + 1e-9 * np.eye(p), Sy - Xty[j]) for j in range(n_t)])
-        Bd = np.stack([np.linalg.solve(SD - DtD[j] + 1e-9 * np.eye(2), Sd - Dty[j]) for j in range(n_t)])
-        b_all = np.linalg.solve(SX, Sy); d_all = np.linalg.solve(SD, Sd)
-        smear = float(np.mean(np.exp(yf - Xf @ b_all)))
-        yhat = np.einsum("hpk,pk->hp", X, B[pj])
+        if fixed is None:
+            B = np.stack([np.linalg.solve(SX - XtX[j] + 1e-9 * np.eye(p), Sy - Xty[j]) for j in range(n_t)])
+            Bd = np.stack([np.linalg.solve(SD - DtD[j] + 1e-9 * np.eye(2), Sd - Dty[j]) for j in range(n_t)])
+            b_all = np.linalg.solve(SX, Sy); d_all = np.linalg.solve(SD, Sd)
+            smear = float(np.mean(np.exp(yf - Xf @ b_all)))
+        else:
+            b_all, d_all = np.asarray(fixed["b"], dtype=float), np.asarray(fixed["d"], dtype=float)
+        if fixed is not None:
+            B = np.tile(np.asarray(fixed["b"], dtype=float), (n_t, 1)); Bd = np.tile(np.asarray(fixed["d"], dtype=float), (n_t, 1))
+            smear = float(fixed["smear"])
+        yhat = np.einsum("hpk,pk->hp", X, B[pj].astype(np.float32))
         if sp.learner == "gbm":
             from sklearn.ensemble import HistGradientBoostingRegressor
             grp = np.arange(n_t) % 10
@@ -258,7 +273,8 @@ class Engine:
         near = np.array([np.where(pj == j)[0][np.argmin(self.pd[pj == j])] for j in range(n_t)])
         U0n = U0[:, near] * physics.height_factor(6.0); wd0n = wd_s[:, near]
         out = dict(spec=sp, b=b_all, d=d_all, smear=smear, n_fit=int(fit.sum()))
-        for name, per in (("A", self.A), ("B", ~self.A)):
+        periods = [("A", self.A), ("B", ~self.A)] + [(f"B:{g}", ~self.A & m) for g, m in (groups or {}).items()]
+        for name, per in periods:
             m = per[:, None] & np.isfinite(self.tws) & np.isfinite(U)
             err = np.where(m, np.abs(U - self.tws), np.nan)
             mae = np.nanmean(err, 0)
@@ -279,26 +295,36 @@ class Engine:
         return out
 
 
-def cv(engine: "Engine", sp: Spec, n_blocks: int = 4) -> dict:
+def cv(engine: "Engine", sp: Spec, n_blocks: int = 4, groups: dict | None = None, fixed: dict | None = None) -> dict:
     """leave-one-time-block-out x leave-one-TrV-station-out: every prediction is out of time and out of station.
-    Returns per-station MAE etc. pooled over all held-out hours."""
+    Returns per-station MAE etc. pooled over all held-out hours; groups = {name: hour mask} adds the same
+    metrics restricted to those hours under result[name]."""
     H = engine.H
     blocks = np.array_split(np.arange(len(H)), n_blocks)
     A0 = engine.A
-    acc = None
+    keys = ("sum_abs", "n", "sum_raw", "sum_dir", "n_dir", "sum_dir_raw", "n_dir_raw", "sum_le", "sum_le2", "n_le")
+    names = ["B"] + [f"B:{g}" for g in (groups or {})]
+    acc = {nm: None for nm in names}
     try:
         for b in blocks:
             fitmask = np.ones(len(H), bool); fitmask[b] = False
             engine.A = fitmask
-            r = engine.run(sp)["B"]
-            keys = ("sum_abs", "n", "sum_raw", "sum_dir", "n_dir", "sum_dir_raw", "n_dir_raw", "sum_le", "sum_le2", "n_le")
-            acc = {k: r[k].astype(float) for k in keys} if acc is None else {k: acc[k] + r[k] for k in keys}
+            res = engine.run(sp, groups=groups, fixed=fixed)
+            for nm in names:
+                r = res[nm]
+                acc[nm] = {k: r[k].astype(float) for k in keys} if acc[nm] is None else {k: acc[nm][k] + r[k] for k in keys}
     finally:
         engine.A = A0
-    with np.errstate(invalid="ignore", divide="ignore"):
-        return dict(mae=acc["sum_abs"] / acc["n"], mae_raw=acc["sum_raw"] / acc["n"], dir=acc["sum_dir"] / acc["n_dir"],
-                    dir_raw=acc["sum_dir_raw"] / acc["n_dir_raw"],
-                    bias_log=acc["sum_le"] / acc["n_le"], rmse_log=np.sqrt(acc["sum_le2"] / acc["n_le"]))
+
+    def pack(a):
+        with np.errstate(invalid="ignore", divide="ignore"):
+            return dict(mae=a["sum_abs"] / a["n"], mae_raw=a["sum_raw"] / a["n"], dir=a["sum_dir"] / a["n_dir"],
+                        dir_raw=a["sum_dir_raw"] / a["n_dir_raw"], n=a["n"],
+                        bias_log=a["sum_le"] / a["n_le"], rmse_log=np.sqrt(a["sum_le2"] / a["n_le"]))
+    out = pack(acc["B"])
+    for g in (groups or {}):
+        out[g] = pack(acc[f"B:{g}"])
+    return out
 
 
 def summarise(r: dict, base: dict | None = None) -> dict:
@@ -322,7 +348,38 @@ def one_se_range(df: pd.DataFrame, value_col: str, score: str = "A_mae_mean", se
     return best[value_col], ok[value_col].min(), ok[value_col].max()
 
 
-# Recommended model after round 7 (M6): see ModelA_round7_sensitivity_and_improvements.ipynb
-RECOMMENDED = Spec(interaction=False, tree="tree_R100_H22.5", extra=("v:tree_R1000_H22.5",),
-                   km=150, min_n=1, power=1.5, site_nsec=8, L_smhi=100,
+def ladder(engine: "Engine", sp: Spec, max_km: float = 80.0) -> pd.DataFrame:
+    """correction ladder per pair (fitted and evaluated on all hours, LOSO over roadside stations):
+    U0 raw, U1 height only, U2 + roughness, U3 + site factors, U4 + exposure model"""
+    A0 = engine.A
+    engine.A = np.ones(len(engine.H), bool)
+    try:
+        r = engine.run(sp, keep_rows=True)
+        r2 = engine.run(dataclasses.replace(sp, site="none"), keep_rows=True)
+    finally:
+        engine.A = A0
+    ps, pj = engine.ps, engine.pj
+    U0 = engine.sws.values[:, ps]; ws = engine.tws[:, pj]
+    f_h = physics.height_factor(engine.cfg.z_trv, engine.cfg.z_smhi, engine.cfg.z0_open)
+    levels = dict(U0=U0, U1=U0 * f_h, U2=r2["U3"], U3=r["U3"], U4=r["U4"])
+    sel = engine.pd <= max_km
+    rows = []
+    for i in np.where(sel)[0]:
+        o = np.isfinite(ws[:, i]) & np.isfinite(U0[:, i])
+        m = o & (U0[:, i] >= 2) & (ws[:, i] > 0.2)
+        row = dict(pair=i, dist=engine.pd[i])
+        for k, v in levels.items():
+            x = v[:, i]
+            ok = o & np.isfinite(x)
+            row[f"mae_{k}"] = float(np.mean(np.abs(x[ok] - ws[ok, i]))) if ok.sum() > 50 else np.nan
+            mm = m & np.isfinite(x) & (x > 0)
+            row[f"bias_{k}"] = float(np.exp(np.mean(np.log(ws[mm, i] / x[mm]))) - 1) if mm.sum() > 50 else np.nan
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
+# Final joint model (Sweden and Norway): two tree scales (100 m upwind, forest fraction within 1 km in all
+# directions), one site factor per reference station, speed combined from all stations with 1/d^1.5
+RECOMMENDED = Spec(interaction=False, tree="tree_R100_H22.5", extra=("v:tree_R1000_H180",),
+                   km=150, min_n=1, power=1.5, site="mean", L_smhi=100,
                    dir_km=60, dir_power=1.0, dir_tree="tree_R200_H22.5")
