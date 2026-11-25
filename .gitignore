@@ -5,8 +5,8 @@
 .env
 
 # data (downloaded or derived; see code/README.md, section 5)
-data/
-output/
+/data/
+/output/
 *.parquet
 *.nc
 *.tif
