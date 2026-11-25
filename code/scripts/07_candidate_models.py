@@ -22,6 +22,7 @@ C = {
     "M6 = M5 + 8 sectors, L_smhi 100 m": Spec(interaction=False, tree="tree_R100_H22.5", extra=("stab",) + two, km=150, min_n=1, power=1.5, site_nsec=8, L_smhi=100, **DIR),
     "M7 = M6 + cross-road×tree": Spec(interaction=False, tree="tree_R100_H22.5", extra=("stab", "cross", "cross_tree") + two, km=150, min_n=1, power=1.5, site_nsec=8, L_smhi=100, **DIR),
     "M6 without roughness physics": Spec(interaction=False, tree="tree_R100_H22.5", extra=("stab",) + two, km=150, min_n=1, power=1.5, site_nsec=8, L_smhi=100, roughness=False, **DIR),
+    "M8 = M6 − stability (final)": Spec(interaction=False, tree="tree_R100_H22.5", extra=two, km=150, min_n=1, power=1.5, site_nsec=8, L_smhi=100, **DIR),
     "GBM upper bound (M7 features + Sx, TPI, h_mid)": Spec(interaction=True, tree="tree_R100_H22.5", extra=("stab", "cross", "sx", "tpi", "hmid") + two, km=150, min_n=1, power=1.5, site_nsec=8, L_smhi=100, learner="gbm", **DIR),
 }
 res = {k: cv(E, s) for k, s in C.items()}
