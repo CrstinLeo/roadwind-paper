@@ -161,7 +161,15 @@ cv(E, RECOMMENDED)["mae"].mean()            # 0.698 m/s（第 6 轮模型 0.740�
 去掉 lnU×tree 交互项；风速合并改用全部站、权重 1/d^1.5；站点因子 8 个扇区；SMHI 足迹 100 m。风向部分不变。
 `pipeline.py` 仍是第 6 轮模型（为了复现）；M6 目前只在 `sensitivity.Engine` 中实现。
 
-## 9. 已知局限
+## 9. 两国研究与最终模型（2026-11-26）
+
+- 挪威（主研究区）：`Settings.norway()`，数据由 `analysis/norway/` 的脚本下载（Frost API、Kartverket DOM−DTM、ESA WorldCover），`scripts/11_norway.py`（校正阶梯、按季节分块交叉验证、敏感性、两国互用系数）、`12_vehicle_norway.py`（NOR-XWIND 车辆高度验证）、`13_norway_figures.py`。
+- 瑞典：`scripts/14_final_cv.py`（最终模型交叉验证、风阻误差），`09_paper_figures.py`。
+- 论文数字和表格：`scripts/15_paper_numbers.py` → `sections/generated/`（`10_paper_tables.py` 为单国版，已被取代）。
+- 最终模型（两国通用，`sensitivity.RECOMMENDED` 与 `Settings()` 默认值一致）：每个参照站一个站点因子；近处树木 100 m（上风向 ±22.5°）；1 km 内各方向的森林覆盖率；ln(x/h)；ln U_net；全部参照站按 1/d^1.5 合并风速；风向 60 km、1/d。
+- 风阻：`drag.py`，Askerdal 等（2024）模型 1，半挂牵引车 A_f = 10.3 m²、A_s = 57.6 m²。
+
+## 10. 已知局限
 
 - 只有 9 天检验数据；超参数（60 km、阈值、200 m、L）部分是在同一时段比较后选的，论文中应在训练期固定、到独立时段检验。
 - TrV API 只保留约 7 天，长期历史需要 VViS 档案。

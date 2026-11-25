@@ -32,7 +32,8 @@ REF6 = Spec()                                           # round-6 reference conf
 
 R["ladder"] = ladder(E, FINAL); log("ladder", R["ladder"].filter(like="mae").median().round(3).to_dict())
 R["site_c"] = E.site_factors(FINAL); log("site factors", R["site_c"].shape)
-R["cv_final"] = cv(E, FINAL, NB, groups=G); log("cv final", np.nanmean(R["cv_final"]["mae"]).round(3), np.nanmedian(R["cv_final"]["mae"]).round(3))
+R["cv_final"] = cv(E, FINAL, NB, groups=G, keep_pred=True)
+R["pred_final"] = R["cv_final"].pop("pred"); R["obs"] = dict(ws=E.tws.astype(np.float32), wd=E.twd.astype(np.float32), road=E.road, hours=E.H); log("cv final", np.nanmean(R["cv_final"]["mae"]).round(3), np.nanmedian(R["cv_final"]["mae"]).round(3))
 R["cv_ref6"] = cv(E, REF6, NB, groups=G); log("cv ref6", np.nanmean(R["cv_ref6"]["mae"]).round(3))
 E.A = np.ones(len(E.H), bool)
 full = E.run(FINAL); R["coef"] = dict(b=full["b"], d=full["d"], smear=full["smear"])
@@ -42,16 +43,13 @@ for b in np.array_split(np.arange(len(E.H)), NB):
 R["coef_folds"] = np.array(folds); log("coef", np.round(full["b"], 3), np.round(full["d"], 1))
 
 scans = {
-    "tree_R": [(f"{r} m", dict(tree=f"tree_R{r}_H22.5")) for r in (50, 100, 150, 200, 300, 500)],
-    "far": [(l, dict(extra=e)) for l, e in (("none", ()), ("300 m", ("v:tree_R300_H22.5",)), ("500 m", ("v:tree_R500_H22.5",)),
-                                             ("1 km", ("v:tree_R1000_H22.5",)), ("1 km all dir.", ("v:tree_R1000_H180",)))],
-    "km": [(f"{k} km", dict(km=k)) for k in (10, 20, 40, 60, 80, 120)],
-    "power": [(f"{p}", dict(power=p)) for p in (0.0, 0.5, 1.0, 1.5, 2.0, 3.0)],
-    "L_trv": [(f"{l} m", dict(L_trv=l)) for l in (25, 50, 100, 200, 400, 1000)],
-    "L_smhi": [(f"{l} m", dict(L_smhi=l)) for l in (25, 100, 400, 1000)],
+    "tree_R": [(f"{r} m", dict(tree=f"tree_R{r}_H22.5")) for r in (50, 100, 200, 500)],
+    "far": [(l, dict(extra=e)) for l, e in (("none", ()), ("500 m", ("v:tree_R500_H180",)), ("1 km upwind", ("v:tree_R1000_H22.5",)),
+                                             ("1 km all dir.", ("v:tree_R1000_H180",)))],
+    "km": [(f"{k} km", dict(km=k)) for k in (20, 40, 80, 120)],
+    "power": [(f"{p}", dict(power=p)) for p in (0.5, 1.0, 1.5, 2.0)],
     "site": [(s, dict(site=s)) for s in ("none", "mean", "sector")],
-    "fit_min": [(f"{v} m/s", dict(fit_min=v)) for v in (1.0, 2.0, 3.0, 4.0)],
-    "variants": [("final", {}), ("+ cross-road x tree", dict(extra=("v:tree_R1000_H22.5", "cross", "cross_tree"))),
+    "variants": [("final", {}), ("+ cross-road x tree", dict(extra=("v:tree_R1000_H180", "cross", "cross_tree"))),
                  ("no roughness conversion", dict(roughness=False)), ("no ln(x/h)", dict(use_lnxh=False)),
                  ("+ lnU x tree", dict(interaction=True))],
 }

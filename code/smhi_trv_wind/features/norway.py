@@ -53,12 +53,12 @@ def _wcs(kind: str, x: float, y: float) -> np.ndarray:
 
 
 def _tiles(lat0, lat1, lon0, lon1):
-    out = set()
-    for la in (lat0, lat1):
-        for lo in (lon0, lon1):
-            tla, tlo = 3 * math.floor(la / 3), 3 * math.floor(lo / 3)
-            out.add(f"{'N' if tla >= 0 else 'S'}{abs(tla):02d}{'E' if tlo >= 0 else 'W'}{abs(tlo):03d}")
-    return sorted(out)
+    """all 3x3 degree WorldCover tiles covering the box"""
+    out = []
+    for tla in range(3 * math.floor(lat0 / 3), 3 * math.floor(lat1 / 3) + 1, 3):
+        for tlo in range(3 * math.floor(lon0 / 3), 3 * math.floor(lon1 / 3) + 1, 3):
+            out.append(f"{'N' if tla >= 0 else 'S'}{abs(tla):02d}{'E' if tlo >= 0 else 'W'}{abs(tlo):03d}")
+    return out
 
 
 def water_mask(x: float, y: float) -> np.ndarray:

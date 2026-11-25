@@ -40,7 +40,7 @@ road_ids = [s for s in S.index[S.grp == "SVV"] if s in set(W.id)]
 ws = W.pivot_table(index="time", columns="id", values="ws"); wd = W.pivot_table(index="time", columns="id", values="wd").reindex(columns=ws.columns)
 F = pd.read_parquet(cfg.paths.root / "vehicle_segment_features.parquet")
 piv = lambda col: F.pivot(index="id", columns="dir", values=col)
-T_near, T_far, XH, LZ = piv("tree_R100_H22.5"), piv("tree_R1000_H22.5"), np.log(piv("xh_edge").clip(*cfg.xh_clip)), piv("lnz0_L100_H22.5")
+T_near, T_far, XH, LZ = piv("tree_R100_H22.5"), piv("tree_R1000_H180"), np.log(piv("xh_edge").clip(*cfg.xh_clip)), piv("lnz0_L100_H22.5")
 T_dir = piv("tree_R200_H22.5")
 segmeta = F.drop_duplicates("id").set_index("id")[["site", "seg", "lat", "lon", "road_bearing"]]
 fh = physics.height_factor(Z_VEH, 10.0, 0.03)
@@ -60,7 +60,8 @@ for site, f in (("dovre", "/home/claude/nx/data/bins_dovre.parquet"), ("froya", 
         knet = sector(physics.network_direction(u[ok].to_frame().T, w[ok].to_frame().T).iloc[0], 16)
         k8 = sector(physics.network_direction(u[ok].to_frame().T, w[ok].to_frame().T).iloc[0], 8)
         P = np.array([physics.to_potential(np.exp(lz_ref.loc[s, knet]), cfg) for s in ref_ids])
-        corr = u.values * P * np.exp(-C.reindex(ref_ids)[k8].values)
+        cs = C.reindex(ref_ids)
+        corr = u.values * P * np.exp(-cs.mean(axis=1).values)          # one site factor per station (final model)
         lnU_net = np.log(max(np.nanmean(corr), 0.5))
         Fseg = physics.to_site(np.exp(LZ.loc[sid, knet]), cfg, z=Z_VEH)
         x = np.array([1.0, T_near.loc[sid, knet], XH.loc[sid, knet], lnU_net, T_far.loc[sid, knet]])

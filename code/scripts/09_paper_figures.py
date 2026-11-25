@@ -100,7 +100,7 @@ def fig_map():
     ax.plot([x0 + 10e3, x0 + 60e3], [y0 + 10e3] * 2, color=INK, lw=2)
     ax.text(x0 + 35e3, y0 + 13e3, "50 km", ha="center", fontsize=7)
     ax.legend(loc="upper left", frameon=True, framealpha=0.9, edgecolor="none")
-    save(fig, "fig01_study_area")
+    save(fig, "fig02_sweden_area")
 
 
 # ---------------------------------------------------------------- Fig 3: correction ladder
@@ -149,7 +149,7 @@ def fig_site():
     cb = fig.colorbar(im, ax=b, pad=0.02); cb.set_ticks([0.5, 0.7, 1, 1.4, 2]); cb.set_ticklabels(["0.5", "0.7", "1", "1.4", "2"])
     cb.ax.yaxis.set_minor_formatter(matplotlib.ticker.NullFormatter())
     b.invert_yaxis(); a.set_ylim(-0.5, len(o) - 0.5)
-    save(fig, "fig04_site_factors")
+    save(fig, "fig08_site_factors_sweden")
 
 
 # ---------------------------------------------------------------- Fig 5: sensitivity panels
@@ -178,7 +178,7 @@ def fig_sensitivity():
     for a in axes[:, 0]:
         a.set_ylabel("ΔMAE vs round-6 model [m s$^{-1}$]")
     fig.tight_layout(w_pad=0.6, h_pad=0.8)
-    save(fig, "fig05_sensitivity")
+    save(fig, "figS1_sensitivity_sweden")
 
 
 # ---------------------------------------------------------------- Fig 6: two shelter scales
@@ -199,39 +199,44 @@ def fig_two_scale():
     ax.set_xticks(range(len(fars))); ax.set_xticklabels([l for _, l in fars]); ax.grid(False)
     ax.set_xlabel("far (landscape) forest fraction")
     cb = fig.colorbar(im, ax=ax, pad=0.01); cb.set_label("ΔMAE [m s$^{-1}$]")
-    save(fig, "fig06_two_shelter_scales")
+    save(fig, "fig07_two_shelter_scales_sweden")
 
 
 # ---------------------------------------------------------------- Fig 7: along-road correlation
 def fig_along():
-    V = pd.read_parquet(cfg.paths.feat_variants)
-    V = V[V.src == "trv"]
     offs = [-1000, -750, -500, -250, -100, 0, 100, 250, 500, 750, 1000]
-    r1, r2 = [], []
-    for s in offs:
-        for col, out in (("tree", r1), ("lnz0", r2)):
-            a, b = V[f"along_{col}_s0"].values, V[f"along_{col}_s{s}"].values
-            ok = np.isfinite(a) & np.isfinite(b)
-            out.append(np.corrcoef(a[ok], b[ok])[0, 1])
+    curves = {}
+    for country, path in (("Sweden", cfg.paths.feat_variants), ("Norway", Path(os.environ.get("SWW_NO_DATA", "/home/claude/no")) / "features_variants.parquet")):
+        if not Path(path).exists():
+            continue
+        V = pd.read_parquet(path); V = V[V.src == "trv"]
+        for col in ("tree", "lnz0"):
+            r = []
+            for s in offs:
+                a, b = V[f"along_{col}_s0"].values, V[f"along_{col}_s{s}"].values
+                ok = np.isfinite(a) & np.isfinite(b)
+                r.append(np.corrcoef(a[ok], b[ok])[0, 1])
+            curves[(country, col)] = r
     S = pickle.load(open(OUT / "sensitivity_cv.pkl", "rb"))["res"]
     base = S[("road_window", "±0 m")]["r"]["mae"]
     labs = ["±0 m", "±100 m", "±250 m", "±500 m", "±750 m", "±1000 m"]
     seg = [0, 200, 500, 1000, 1500, 2000]
     v = [paired(S[("road_window", l)]["r"]["mae"], base) for l in labs]
     fig, ax = plt.subplots(1, 2, figsize=(W2, 2.3))
-    ax[0].plot(offs, r1, "-o", color=BLUE, ms=3.5, label="upwind tree share (200 m)")
-    ax[0].plot(offs, r2, "-o", color=ORANGE, ms=3.5, label="upwind ln $z_0$ (L = 100 m)")
-    ax[0].axhline(np.mean([r1[0], r1[-1], r2[0], r2[-1]]), color=MUTED, ls="--", lw=0.8)
+    for (country, col), r in curves.items():
+        ax[0].plot(offs, r, "-o" if col == "tree" else "--s", color=BLUE if country == "Sweden" else ORANGE, ms=3,
+                   label=f"{country}: " + ("upwind tree share (200 m)" if col == "tree" else "upwind ln $z_0$ (L = 100 m)"))
     ax[0].set_xlabel("distance along the road from the station [m]"); ax[0].set_ylabel("correlation with station value")
-    ax[0].set_ylim(0, 1.05); ax[0].legend(frameon=False, loc="lower center"); ax[0].set_title("(a)", loc="left")
+    ax[0].set_ylim(0, 1.05); ax[0].set_title("(a)", loc="left")
+    ax[0].legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.22), ncol=2, fontsize=6.5)
     ax[1].errorbar(seg, [m for m, _ in v], yerr=[s for _, s in v], fmt="-o", color=BLUE, ms=3.5, capsize=1.5)
     ax[1].axhline(0, color=MUTED, lw=0.7)
     ax[1].set_xlabel("segment length 2S over which features are averaged [m]"); ax[1].set_ylabel("ΔMAE vs point features [m s$^{-1}$]")
     ax[1].set_title("(b)", loc="left")
     fig.tight_layout()
-    save(fig, "fig07_along_road")
+    save(fig, "fig05_along_road")
 
 
 if __name__ == "__main__":
-    for f in (fig_map, fig_ladder, fig_site, fig_sensitivity, fig_two_scale, fig_along):
+    for f in (fig_map, fig_site, fig_sensitivity, fig_two_scale, fig_along):
         f()

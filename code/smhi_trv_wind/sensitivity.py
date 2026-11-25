@@ -155,7 +155,8 @@ class Engine:
         return c
 
     # ---------------------------------------------------------------- evaluation
-    def run(self, sp: Spec, keep_rows: bool = False, fixed: dict | None = None, groups: dict | None = None) -> dict:
+    def run(self, sp: Spec, keep_rows: bool = False, fixed: dict | None = None, groups: dict | None = None,
+            keep_pred: bool = False) -> dict:
         """fixed = dict(b=..., d=..., smear=...) applies given coefficients to every station (transfer test, no fitting)"""
         cfg = dataclasses.replace(self.cfg, z_blend=sp.z_blend)
         c = self.site_factors(sp)
@@ -271,7 +272,7 @@ class Engine:
         wdm = np.degrees(np.arctan2(su, cv)) % 360
         # nearest raw baseline
         near = np.array([np.where(pj == j)[0][np.argmin(self.pd[pj == j])] for j in range(n_t)])
-        U0n = U0[:, near] * physics.height_factor(6.0); wd0n = wd_s[:, near]
+        U0n = U0[:, near] * physics.height_factor(self.cfg.z_trv, self.cfg.z_smhi, self.cfg.z0_open); wd0n = wd_s[:, near]
         out = dict(spec=sp, b=b_all, d=d_all, smear=smear, n_fit=int(fit.sum()))
         periods = [("A", self.A), ("B", ~self.A)] + [(f"B:{g}", ~self.A & m) for g, m in (groups or {}).items()]
         for name, per in periods:
@@ -292,10 +293,13 @@ class Engine:
                              sum_le=np.nansum(le, 0), sum_le2=np.nansum(le ** 2, 0), n_le=np.sum(np.isfinite(le), 0))
         if keep_rows:
             out.update(U=U, wdm=wdm, U4=U4, U3=U3, X=X, y=y, fit=fit)
+        if keep_pred:                                   # station-level estimates only (small)
+            out.update(U=U.astype(np.float32), wdm=wdm.astype(np.float32), U0n=U0n.astype(np.float32), wd0n=wd0n.astype(np.float32))
         return out
 
 
-def cv(engine: "Engine", sp: Spec, n_blocks: int = 4, groups: dict | None = None, fixed: dict | None = None) -> dict:
+def cv(engine: "Engine", sp: Spec, n_blocks: int = 4, groups: dict | None = None, fixed: dict | None = None,
+       keep_pred: bool = False) -> dict:
     """leave-one-time-block-out x leave-one-TrV-station-out: every prediction is out of time and out of station.
     Returns per-station MAE etc. pooled over all held-out hours; groups = {name: hour mask} adds the same
     metrics restricted to those hours under result[name]."""
@@ -305,11 +309,17 @@ def cv(engine: "Engine", sp: Spec, n_blocks: int = 4, groups: dict | None = None
     keys = ("sum_abs", "n", "sum_raw", "sum_dir", "n_dir", "sum_dir_raw", "n_dir_raw", "sum_le", "sum_le2", "n_le")
     names = ["B"] + [f"B:{g}" for g in (groups or {})]
     acc = {nm: None for nm in names}
+    pred = None
     try:
         for b in blocks:
             fitmask = np.ones(len(H), bool); fitmask[b] = False
             engine.A = fitmask
-            res = engine.run(sp, groups=groups, fixed=fixed)
+            res = engine.run(sp, groups=groups, fixed=fixed, keep_pred=keep_pred)
+            if keep_pred:
+                if pred is None:
+                    pred = {k: np.full_like(res[k], np.nan) for k in ("U", "wdm", "U0n", "wd0n")}
+                for k in pred:
+                    pred[k][b] = res[k][b]
             for nm in names:
                 r = res[nm]
                 acc[nm] = {k: r[k].astype(float) for k in keys} if acc[nm] is None else {k: acc[nm][k] + r[k] for k in keys}
@@ -324,6 +334,8 @@ def cv(engine: "Engine", sp: Spec, n_blocks: int = 4, groups: dict | None = None
     out = pack(acc["B"])
     for g in (groups or {}):
         out[g] = pack(acc[f"B:{g}"])
+    if keep_pred:
+        out["pred"] = pred                              # out-of-time, out-of-station estimates [hour x roadside station]
     return out
 
 

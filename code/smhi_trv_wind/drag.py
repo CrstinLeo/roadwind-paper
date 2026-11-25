@@ -34,3 +34,22 @@ def relative_error(v_vehicle, true_speed, true_dir, est_speed, est_dir, heading)
     ht, ct = components(true_speed, true_dir, heading)
     he, ce = components(est_speed, est_dir, heading)
     return force(v_vehicle, he, ce) / force(v_vehicle, ht, ct) - 1
+
+
+def station_errors(obs_ws, obs_wd, est_ws, est_wd, road_bearing, v_vehicle=80 / 3.6, min_ws=0.0):
+    """relative drag error for a vehicle passing each roadside station in both directions of the road.
+    Arrays [hour x station]; road_bearing [station] (0-180 deg). Returns |error| per station (median over hours
+    and both directions) and the pooled signed errors."""
+    obs_ws, obs_wd, est_ws, est_wd = map(np.asarray, (obs_ws, obs_wd, est_ws, est_wd))
+    ok = np.isfinite(obs_ws) & np.isfinite(obs_wd) & np.isfinite(est_ws) & np.isfinite(est_wd) & (obs_ws >= min_ws)
+    per, pooled = [], []
+    for j in range(obs_ws.shape[1]):
+        m = ok[:, j]
+        if m.sum() < 10 or not np.isfinite(road_bearing[j]):
+            per.append(np.nan)
+            continue
+        e = np.concatenate([relative_error(v_vehicle, obs_ws[m, j], obs_wd[m, j], est_ws[m, j], est_wd[m, j], road_bearing[j] + k)
+                            for k in (0.0, 180.0)])
+        per.append(float(np.median(np.abs(e))))
+        pooled.append(e)
+    return np.array(per), (np.concatenate(pooled) if pooled else np.array([]))

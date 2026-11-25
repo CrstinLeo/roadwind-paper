@@ -57,9 +57,9 @@ def fig_map_norway():
             part = np.zeros_like(lc)
             try:
                 with rasterio.open(WORLDCOVER.format(tile=t)) as s:
-                    rasterio.warp.reproject(rasterio.band(s, 1), part, dst_transform=tr, dst_crs="EPSG:25833", resampling=rasterio.warp.Resampling.mode)
+                    rasterio.warp.reproject(rasterio.band(s, 1), part, dst_transform=tr, dst_crs="EPSG:25833", resampling=rasterio.warp.Resampling.nearest)
             except rasterio.errors.RasterioIOError:
-                continue
+                raise RuntimeError(f"WorldCover tile {t} could not be read; retry")
             lc = np.where(lc == 0, part, lc)
     base = np.where((lc == 80) | (lc == 0), 3, np.where(lc == 10, 2, 1))
     cv_ = R["cv_final"]["mae"]
@@ -78,7 +78,7 @@ def fig_map_norway():
     ax.set_xlim(x0, x1); ax.set_ylim(y0, y1); ax.set_aspect("equal"); ax.grid(False); ax.set_xticks([]); ax.set_yticks([])
     ax.plot([x0 + 10e3, x0 + 60e3], [y0 + 10e3] * 2, color=INK, lw=2); ax.text(x0 + 35e3, y0 + 13e3, "50 km", ha="center", fontsize=7)
     ax.legend(loc="upper left", framealpha=0.9, edgecolor="none")
-    save(fig, "fig08_norway_area")
+    save(fig, "fig01_norway_area")
 
 
 def fig_vehicle():
@@ -93,7 +93,9 @@ def fig_vehicle():
         m = max(g.w_veh.max(), g[[e[0] for e in est]].max().max()) * 1.05
         a.plot([0, m], [0, m], color=INK, lw=0.8); a.set_xlim(0, m); a.set_ylim(0, m)
         a.set_xlabel("vehicle anemometer, 3.4 m [m s$^{-1}$]"); a.set_title(site, loc="left")
-    ax[0].set_ylabel("estimate [m s$^{-1}$]"); ax[0].legend(frameon=False, loc="upper left", markerscale=2)
+    ax[0].set_ylabel("estimate [m s$^{-1}$]")
+    h, l = ax[0].get_legend_handles_labels()
+    fig.legend(h, l, loc="lower center", ncol=4, frameon=False, markerscale=2, bbox_to_anchor=(0.5, -0.06))
     vv = 80 / 3.6
     errs = []
     for c, dcol, lab in est:
@@ -102,10 +104,57 @@ def fig_vehicle():
     ax[2].boxplot(errs, showfliers=False, widths=0.6, medianprops=dict(color=INK))
     ax[2].set_xticks(range(1, 5)); ax[2].set_xticklabels(["nearest\nMET", "nearest\nroad st.", "MET\nNordic", "this\nstudy"])
     ax[2].set_ylabel("|air-drag error| at 80 km h$^{-1}$ [%]"); ax[2].set_title("(c) tractor-semitrailer drag", loc="left")
-    fig.tight_layout(); save(fig, "fig09_vehicle_validation")
+    fig.tight_layout(rect=(0, 0.06, 1, 1)); save(fig, "fig06_vehicle_validation")
+
+
+def fig_ladder_both():
+    """correction ladder, pairs <= 80 km, Norway (engine ladder) and Sweden (pipeline pair metrics)"""
+    SEres = pickle.load(open(Path(os.environ.get("SWW_SE_OUT", "/tmp/sww8")) / "result.pkl", "rb"))
+    L = R["ladder"]; L = L[L.dist <= 80]
+    P = SEres.P[SEres.P.dist <= 80]
+    steps = ["U0", "U1", "U2", "U3", "U4"]
+    lab = ["raw", "height", "roughness", "site\nfactor", "roadside\nexposure"]
+    fig, ax = plt.subplots(1, 2, figsize=(W2, 2.5))
+    for D, col, name in ((L, ORANGE, "Norway"), (P, BLUE, "Sweden")):
+        for a, k in ((ax[0], "mae"), (ax[1], "bias")):
+            q = np.array([D[f"{k}_{s}"].quantile([0.25, 0.5, 0.75]).values for s in steps])
+            x = np.arange(5) + (-0.06 if name == "Norway" else 0.06)
+            a.fill_between(x, q[:, 0], q[:, 2], color=col, alpha=0.12, lw=0)
+            a.plot(x, q[:, 1], "-o", color=col, ms=4, label=f"{name} ({len(D)} pairs)")
+    for a in ax:
+        a.set_xticks(range(5)); a.set_xticklabels(lab)
+    ax[0].set_ylabel("MAE [m s$^{-1}$]"); ax[0].set_ylim(bottom=0); ax[0].legend(frameon=False)
+    ax[1].set_ylabel("bias $U_\\mathrm{road}/U - 1$"); ax[1].axhline(0, color=MUTED, lw=0.8)
+    ax[0].set_title("(a) absolute error", loc="left"); ax[1].set_title("(b) bias", loc="left")
+    fig.tight_layout(); save(fig, "fig03_correction_ladder")
+
+
+def fig_sens_norway():
+    base = R["cv_final"]["mae"]
+    panels = [("tree_R", "(a) radius of near-tree share", ["50 m", "100 m", "200 m", "500 m"], "100 m"),
+              ("far", "(b) landscape forest fraction", ["none", "500 m", "1 km upwind", "1 km all dir."], "1 km all dir."),
+              ("km", "(c) radius of station combination", ["20 km", "40 km", "80 km", "120 km"], "120 km"),
+              ("power", "(d) weight exponent p in $d^{-p}$", ["0.5", "1.0", "1.5", "2.0"], "1.5"),
+              ("site", "(e) site factors", ["none", "mean", "sector"], "mean"),
+              ("variants", "(f) model variants", ["final", "no roughness conversion", "no ln(x/h)", "+ lnU x tree", "+ cross-road x tree"], "final")]
+    short = {"no roughness conversion": "no z0\nconv.", "no ln(x/h)": "no\nln(x/h)", "+ lnU x tree": "+lnU\n×tree", "+ cross-road x tree": "+cross\n×tree",
+             "1 km upwind": "1 km\nupwind", "1 km all dir.": "1 km\nall dir.", "mean": "per\nstation", "sector": "per\nsector"}
+    fig, axes = plt.subplots(2, 3, figsize=(W2, 3.9))
+    for a, (g, title, labels, pick) in zip(axes.ravel(), panels):
+        v = [paired(R["scans"][(g, l)]["mae"], base) for l in labels]
+        x = np.arange(len(labels))
+        a.errorbar(x, [m for m, _ in v], yerr=[s for _, s in v], fmt="o", color=ORANGE, ms=3.5, capsize=1.5, lw=1)
+        i = labels.index(pick); a.plot(i, v[i][0], "s", ms=8, mfc="none", mec=INK, mew=1)
+        a.axhline(0, color=MUTED, lw=0.7); a.set_xticks(x); a.set_xticklabels([short.get(l, l) for l in labels], fontsize=6.5)
+        a.set_title(title, loc="left", fontsize=7.5)
+    for a in axes[:, 0]:
+        a.set_ylabel("ΔMAE vs final model [m s$^{-1}$]")
+    fig.tight_layout(w_pad=0.6, h_pad=0.8); save(fig, "fig04_sensitivity_norway")
 
 
 if __name__ == "__main__":
+    fig_ladder_both()
+    fig_sens_norway()
     fig_map_norway()
     if (OUT / "vehicle_validation_rows.parquet").exists():
         fig_vehicle()
