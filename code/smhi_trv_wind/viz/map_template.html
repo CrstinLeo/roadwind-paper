@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SMHI → Trafikverket 站点关系</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* VOICE: engineering datasheet, precise and calm
+   IDEA: a station-pair inspection sheet — pick a roadside station, read its reference stations off the map
+   PICTURE: the map with lines from the chosen Trafikverket station to its SMHI stations
+   COLOUR and TYPE: cobalt strip, white panels, green→amber→red error scale; Space Grotesk + Inter
+   LAYOUT: strip with key figures, map left + inspection panel right, summary tables below */
+:root{color-scheme:light dark;--bg:light-dark(#ffffff,#0a0d18);--ink:light-dark(#111522,#e8ebf5);--mute:light-dark(#5b6275,#9aa3b8);--zone:light-dark(#eef2ff,#141a2e);--line:light-dark(#d9deea,#283150);--cob:#1240e0}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 Inter,system-ui,sans-serif;overflow-x:clip}
+h1,h2,h3{font-family:'Space Grotesk',Inter,sans-serif;font-weight:600;margin:0;text-wrap:balance}
+.strip{background:var(--cob);color:#fff;padding:22px max(4vw,16px)}
+.strip h1{font-size:clamp(22px,3vw,34px);line-height:1.1}
+.strip p{margin:6px 0 0;opacity:.85;max-width:70ch}
+.kpis{display:flex;flex-wrap:wrap;gap:12px 28px;margin-top:14px}
+.kpi b{display:block;font:600 26px/1.1 'Space Grotesk',sans-serif;white-space:nowrap}
+.kpi span{font-size:13px;opacity:.85}
+.main{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:0;border-bottom:1px solid var(--line)}
+@media(max-width:900px){.main{grid-template-columns:minmax(0,1fr)}}
+#map{height:min(78vh,760px);min-height:420px}
+.panel{padding:16px max(2vw,14px);overflow:auto;max-height:min(78vh,760px)}
+@media(max-width:900px){.panel{max-height:none}}
+.ctrl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+.ctrl input{font:16px Inter,sans-serif;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);flex:1 1 200px}
+.seg button{font:13px Inter,sans-serif;padding:8px 10px;min-height:36px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+.seg button.on{background:var(--cob);color:#fff;border-color:var(--cob)}
+.seg button:first-child{border-radius:6px 0 0 6px}.seg button:last-child{border-radius:0 6px 6px 0}
+.legend{font-size:12px;color:var(--mute);display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.bar{height:8px;width:120px;border-radius:4px;background:linear-gradient(90deg,#1baf7a,#f2c14e,#d6453d)}
+.head{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline}
+.head h2{font-size:22px}
+.meta{color:var(--mute);font-size:13px}
+.duo{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:12px 0}
+.duo div{background:var(--zone);border-radius:8px;padding:10px 12px}
+.duo b{font:600 22px 'Space Grotesk',sans-serif}.duo small{display:block;color:var(--mute);font-size:12px}
+table{border-collapse:collapse;width:100%;font-size:12.5px}
+th,td{padding:5px 6px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th{font-weight:600;color:var(--mute);font-size:12px}
+td:first-child,th:first-child{text-align:left;white-space:nowrap}
+tr.sel td:first-child{font-weight:600}
+tr.dim{opacity:.55}
+.scroll{overflow-x:auto}
+.fig{position:relative;height:190px;margin-top:6px}.fig svg{position:absolute;inset:0;width:100%;height:100%}
+.note{font-size:12px;color:var(--mute);margin:6px 0 0}
+.band{padding:clamp(20px,3vw,40px) max(4vw,16px)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:28px}
+.band h3{font-size:18px;margin-bottom:8px}
+.cell-bar{display:inline-block;height:8px;background:var(--cob);border-radius:3px;vertical-align:middle;margin-left:6px}
+.tip{position:absolute;pointer-events:none;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:4px 7px;font-size:12px;display:none;z-index:5}
+.sq{width:14px;height:14px;border:2px solid #111;transform:translate(-7px,-7px)}
+.lbl{font:600 11px Inter,sans-serif;color:#111;text-shadow:0 0 3px #fff,0 0 3px #fff;white-space:nowrap;transform:translate(10px,-8px)}
+</style>
+</head>
+<body>
+<header class="strip">
+  <h1>SMHI 气象站 → Trafikverket 路边站：校正后能接近多少？</h1>
+  <p id="sub"></p>
+  <div class="kpis" id="kpis"></div>
+</header>
+<section class="main">
+  <div id="map"></div>
+  <div class="panel">
+    <div class="ctrl">
+      <input id="q" list="names" placeholder="搜索路边站名称或编号" aria-label="搜索路边站">
+      <datalist id="names"></datalist>
+    </div>
+    <div class="ctrl">
+      <span class="meta">地图颜色：</span>
+      <div class="seg" id="mode"><button data-m="mae_model" class="on">模型误差</button><button data-m="mae_raw">原始误差</button><button data-m="gain">改善</button></div>
+      <div class="legend"><span id="lo">0</span><span class="bar"></span><span id="hi">3 m/s</span></div>
+    </div>
+    <div id="detail"></div>
+  </div>
+</section>
+<section class="band grid2">
+  <div><h3>校正阶梯（全部站对的中位数）</h3><div class="scroll"><table id="ladder"></table></div>
+    <p class="note">偏差 = 路边站实测 ÷ 预测 − 1（几何平均）。负值表示预测偏高。风速 MAE 统计全部小时，偏差只统计 SMHI ≥ 2 m/s 的小时。</p>
+    <h3 style="margin-top:22px">选站规则对比（各站误差的中位数）</h3><div class="scroll"><table id="rules"></table></div></div>
+  <div><h3>哪些 SMHI 站最有价值</h3><div class="scroll"><table id="value"></table></div>
+    <p class="note">"第一名次数"：在 80 km 内的候选站中，校正后误差最小的次数。"站点质量"：在相同路边站、相同距离下，用该站作参照时误差比平均水平高或低多少（m/s，负值更好）。</p></div>
+</section>
+<section class="band" style="padding-top:0">
+  <h3>方法</h3>
+  <p class="note" id="method" style="font-size:13px;max-width:100ch"></p>
+</section>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>const RULES = __RULES__;</script>
+<script>const DATA = __DATA__;</script>
+<script>
+{
+const S = DATA.summary, H = DATA.hours;
+const SM = Object.fromEntries(DATA.smhi.map(s => [s.id, s]));
+const short = n => n.replace('Göteborg-Landvetter Flygplats','Landvetter').replace(' Flygplats','').replace(' flygplats','').replace('Jönköping-Axamos','Axamo').replace('Kroppefjäll-Granan A','Kroppefjäll A');
+const pct = x => x == null ? '–' : (x > 0 ? '+' : '') + Math.round(x * 100) + '%';
+const f2 = x => x == null ? '–' : x.toFixed(2);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+document.getElementById('sub').textContent = `${S.trv} 个路边站 × 80 km 内的 SMHI 站，共 ${S.pairs} 对；检验时段 ${S.period}（${S.hours} 小时）。SMHI 站点因子只用该时段之前的历史数据估计；路边站模型按留一站拟合（被评估的站不参与拟合）。`;
+document.getElementById('kpis').innerHTML = [
+  [`${S.med_raw} → ${S.med_model} m/s`, '风速误差中位数：最近 SMHI × 0.91 → 校正模型'],
+  [`${S.med_dir_raw.toFixed(0)}° → ${S.med_dir_model.toFixed(0)}°`, '风向误差中位数'],
+  [`${S.improved} / ${S.trv}`, '模型优于最近站的路边站数']
+].map(([b, s]) => `<div class="kpi"><b>${b}</b><span>${s}</span></div>`).join('');
+document.getElementById('ladder').innerHTML = '<tr><th>步骤</th><th>风速 MAE</th><th>偏差</th></tr>' +
+  S.ladder.map(r => `<tr><td>${r.step}</td><td>${f2(r.mae)}</td><td>${pct(r.bias)}</td></tr>`).join('');
+document.getElementById('rules').innerHTML = '<tr><th>参照风</th><th>风速 MAE</th><th>风向 MAE</th></tr>' + RULES.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td></tr>`).join('');
+const vs = DATA.smhi.slice().sort((a, b) => a.q - b.q), maxTop = Math.max(...vs.map(s => s.top1));
+document.getElementById('value').innerHTML = '<tr><th>SMHI 站</th><th>站点因子 原始→物理后</th><th>第一名次数（原始→校正）</th><th>误差中位数 原始→校正</th><th>相关 r</th><th>站点质量</th></tr>' +
+  vs.map(s => `<tr><td>${esc(short(s.name))}</td><td>×${f2(s.f_raw)} → ×${f2(s.f_pot)}</td><td>${s.raw_top1} → ${s.top1}<span class="cell-bar" style="width:${(s.top1 / maxTop * 50).toFixed(0)}px"></span></td><td>${f2(s.mae0)} → ${f2(s.mae4)}</td><td>${f2(s.r4)}</td><td>${s.q > 0 ? '+' : ''}${f2(s.q)}</td></tr>`).join('');
+const c = S.coefs.speed, d = S.coefs.direction;
+document.getElementById('method').textContent = `每对站逐小时依次校正：① 高度：对数律，开阔地 z0 = 0.03 m，从 10 m 换算到 6 m（×0.91）。② 地表粗糙度：Wieringa 两步法，经 60 m 混合高度，从 SMHI 站上风向的有效粗糙度（1 km 足迹）换算到开阔地，再换算到路边站上风向的粗糙度（100 m 足迹）；粗糙度由 NMD 激光物体高度给出：有树处 z0 = 0.1h，水面 0.0002 m，其他 0.03 m，按 16 个风向扇区计算。③ SMHI 站点因子：对 2022-01 至检验期之前的潜在风，估计每站、每风向扇区相对站网的剩余偏差 c_s(k)，物理换算后站点间离散从 ${S.sf_sd_raw} 降到 ${S.sf_sd_pot}。④ 路边站地理模型：ln(U_TrV / U_校正) = ${c.b0} + ${c.tree}·tree + ${c.lnxh}·ln(x/h) + (${c.lnU} ${c.lnU_tree}·tree)·ln U_站网；风向 = SMHI 风向 ${d.d0.toFixed(1)}° ${d.d1.toFixed(1)}°·sin2α·tree（α 为风向与道路轴的夹角）。组合：60 km 内（至少 2 个）SMHI 站的模型结果按 1/距离 加权。数据：SMHI 开放数据、Trafikverket Open API、Lantmäteriet 高程、Naturvårdsverket NMD。`;
+
+const map = L.map('map', {zoomControl: true}).setView([57.7, 12.9], 8);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 13, attribution: '© OpenStreetMap'}).addTo(map);
+L.polyline(DATA.route, {color: '#111522', weight: 3, opacity: .7}).addTo(map).bindTooltip('RV40');
+const ramp = t => { t = Math.max(0, Math.min(1, t)); const a = [[27,175,122],[242,193,78],[214,69,61]]; const i = t < .5 ? 0 : 1, u = t < .5 ? t * 2 : (t - .5) * 2;
+  return 'rgb(' + a[i].map((v, k) => Math.round(v + (a[i + 1][k] - v) * u)).join(',') + ')'; };
+let mode = 'mae_model', selId = null, lines = L.layerGroup().addTo(map);
+const val = t => mode === 'gain' ? (t.mae_raw - t.mae_model) : t[mode];
+const colorOf = t => mode === 'gain' ? ramp(1 - val(t) / 2.5) : ramp(val(t) / 3);
+const tm = {};
+DATA.trv.forEach(t => {
+  tm[t.id] = L.circleMarker([t.lat, t.lon], {radius: 6, weight: 1, color: '#111', fillOpacity: .9}).addTo(map)
+    .bindTooltip(`${esc(t.name)}<br>模型 ${f2(t.mae_model)} / 原始 ${f2(t.mae_raw)} m/s`).on('click', () => select(t.id));
+});
+DATA.smhi.forEach(s => {
+  const q = s.q, col = ramp((q + 0.16) / 0.35);
+  L.marker([s.lat, s.lon], {icon: L.divIcon({className: '', html: `<div class="sq" style="background:${col}"></div><div class="lbl">${esc(short(s.name))}</div>`, iconSize: [0, 0]}), zIndexOffset: 1000})
+    .addTo(map).bindTooltip(`<b>SMHI ${esc(s.name)}</b><br>站点因子 ×${f2(s.f_raw)}（物理换算后 ×${f2(s.f_pot)}）<br>校正后第一名 ${s.top1} 次 / 候选 ${s.cand} 次<br>站点质量 ${s.q > 0 ? '+' : ''}${f2(s.q)} m/s`);
+});
+function paint() {
+  DATA.trv.forEach(t => tm[t.id].setStyle({fillColor: colorOf(t), radius: t.id === selId ? 10 : 6, weight: t.id === selId ? 3 : 1}));
+  document.getElementById('lo').textContent = mode === 'gain' ? '改善 2.5' : '0';
+  document.getElementById('hi').textContent = mode === 'gain' ? '0 m/s' : '3 m/s';
+}
+document.querySelectorAll('#mode button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('#mode button').forEach(x => x.classList.toggle('on', x === b)); mode = b.dataset.m; paint(); }));
+document.getElementById('names').innerHTML = DATA.trv.map(t => `<option value="${esc(t.name)} (${t.id})">`).join('');
+document.getElementById('q').addEventListener('change', e => { const m = e.target.value.match(/\((\d+)\)\s*$/); const t = DATA.trv.find(x => m ? x.id === m[1] : x.name.toLowerCase().includes(e.target.value.toLowerCase())); if (t) select(t.id, true); });
+
+function select(id, fly) {
+  selId = id; const t = DATA.trv.find(x => x.id === id); lines.clearLayers();
+  t.pairs.forEach((p, i) => { const s = SM[p.s];
+    L.polyline([[t.lat, t.lon], [s.lat, s.lon]], p.sel ? {color: ramp(p.m4 / 2), weight: 2 + p.w * 10, opacity: .95} : {color: '#7a8299', weight: 1.5, dashArray: '4 6', opacity: .7})
+      .addTo(lines).bindTooltip(`${esc(short(s.name))} · ${p.d} km · 校正后 MAE ${f2(p.m4)} m/s${p.sel ? ' · 权重 ' + Math.round(p.w * 100) + '%' : ' · 未选用'}`); });
+  if (fly) map.flyTo([t.lat, t.lon], 9);
+  paint(); detail(t);
+}
+function detail(t) {
+  const rows = t.pairs.map((p, i) => `<tr class="${p.sel ? 'sel' : 'dim'}"><td>${i + 1}. ${esc(short(SM[p.s].name))}${p.s === t.near ? ' <span class="meta">最近</span>' : ''}</td><td>${p.d}</td><td>${p.sel ? Math.round(p.w * 100) + '%' : '–'}</td>
+    <td>${pct(p.b0)}</td><td>${pct(p.b1)}</td><td>${pct(p.b2)}</td><td>${pct(p.b3)}</td><td>${pct(p.b4)}</td><td>${f2(p.m0)} → ${f2(p.m4)}</td><td>${f2(p.r4)}</td><td>${p.dr == null ? '–' : Math.round(p.dr) + '° → ' + Math.round(p.dm) + '°'}</td></tr>`).join('');
+  document.getElementById('detail').innerHTML = `<div class="head"><h2>${esc(t.name)}</h2><span class="meta">TrV ${t.id} · 上风向树木占比 ${f2(t.tree)} · 离 RV40 ${f2(t.rv40)} km</span></div>
+  <div class="duo"><div><small>最近 SMHI（${esc(short(SM[t.near].name))}）× 0.91</small><b>${f2(t.mae_raw)} m/s</b><small>风向误差 ${t.dir_raw == null ? '–' : Math.round(t.dir_raw) + '°'}</small></div>
+  <div><small>校正模型（${t.pairs.filter(p => p.sel).length} 站组合）</small><b>${f2(t.mae_model)} m/s</b><small>风向误差 ${t.dir_model == null ? '–' : Math.round(t.dir_model) + '°'}</small></div></div>
+  <div class="scroll"><table><tr><th>SMHI 站（按校正后误差排序）</th><th>km</th><th>权重</th><th>原始偏差</th><th>+高度</th><th>+粗糙度</th><th>+站点因子</th><th>+模型</th><th>MAE 原始→模型</th><th>r</th><th>风向</th></tr>${rows}</table></div>
+  <p class="note">偏差 = 路边站实测 ÷ 预测 − 1。加粗行为参与组合的站，灰色行为 60 km 外未选用的候选站。</p>
+  <h3 style="margin-top:14px;font-size:15px">风速（m/s）</h3><div class="fig" id="fs"><svg></svg><div class="tip"></div></div>
+  <div class="legend" style="margin-top:4px"><span style="color:#111522">━ 路边站实测</span><span style="color:#2a78d6">━ 最近 SMHI 原始 10 m</span><span style="color:#eb6834">━ 校正模型</span></div>
+  <h3 style="margin-top:14px;font-size:15px">风向（来风方向）</h3><div class="fig" id="fd" style="height:150px"><svg></svg></div>`;
+  drawTS(t); drawDir(t);
+}
+function axes(svg, W, Hh, pad, ymax, yt, ylab) {
+  let g = ''; for (const v of yt) { const y = pad.t + (1 - v / ymax) * (Hh - pad.t - pad.b);
+    g += `<line x1="${pad.l}" x2="${W - pad.r}" y1="${y}" y2="${y}" stroke="currentColor" opacity=".12"/><text x="${pad.l - 6}" y="${y + 4}" font-size="11" text-anchor="end" fill="currentColor" opacity=".6">${ylab ? ylab(v) : v}</text>`; }
+  H.forEach((h, i) => { if (h.endsWith(' 00') && (W > 520 || i % 48 === 0)) { const x = pad.l + i / (H.length - 1) * (W - pad.l - pad.r);
+    g += `<text x="${x}" y="${Hh - 4}" font-size="11" text-anchor="middle" fill="currentColor" opacity=".6">${h.slice(0, 5)}</text>`; } });
+  return g;
+}
+function drawTS(t) {
+  const box = document.getElementById('fs'), svg = box.querySelector('svg'), tip = box.querySelector('.tip');
+  const draw = () => { const W = svg.clientWidth, Hh = svg.clientHeight, pad = {l: 32, r: 8, t: 8, b: 20};
+    const all = [...t.ts.obs, ...t.ts.near, ...t.ts.mod].filter(v => v != null), ymax = Math.max(4, Math.ceil(Math.max(...all)));
+    const X = i => pad.l + i / (H.length - 1) * (W - pad.l - pad.r), Y = v => pad.t + (1 - v / ymax) * (Hh - pad.t - pad.b);
+    const path = a => { let d = '', pen = false; a.forEach((v, i) => { if (v == null) { pen = false; return; } d += (pen ? 'L' : 'M') + X(i).toFixed(1) + ',' + Y(v).toFixed(1); pen = true; }); return d; };
+    const step = ymax > 10 ? 4 : 2, yt = []; for (let v = 0; v <= ymax; v += step) yt.push(v);
+    svg.innerHTML = axes(svg, W, Hh, pad, ymax, yt) + `<path d="${path(t.ts.near)}" fill="none" stroke="#2a78d6" stroke-width="1.2" opacity=".8"/><path d="${path(t.ts.obs)}" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="${path(t.ts.mod)}" fill="none" stroke="#eb6834" stroke-width="1.6"/><line id="cur" y1="${pad.t}" y2="${Hh - pad.b}" stroke="currentColor" opacity="0"/>`;
+    svg.onmousemove = e => { const r = svg.getBoundingClientRect(), i = Math.round((e.clientX - r.left - pad.l) / (W - pad.l - pad.r) * (H.length - 1)); if (i < 0 || i >= H.length) return;
+      const cur = svg.querySelector('#cur'); cur.setAttribute('x1', X(i)); cur.setAttribute('x2', X(i)); cur.setAttribute('opacity', .3);
+      tip.style.display = 'block'; tip.textContent = `${H[i]}:00  实测 ${t.ts.obs[i] ?? '–'} · SMHI ${t.ts.near[i] ?? '–'} · 模型 ${t.ts.mod[i] ?? '–'} m/s`;
+      tip.style.left = Math.min(X(i) + 8, W - 260) + 'px'; tip.style.top = '4px'; };
+    svg.onmouseleave = () => { tip.style.display = 'none'; const cur = svg.querySelector('#cur'); if (cur) cur.setAttribute('opacity', 0); };
+  };
+  if (window._roS) window._roS.disconnect(); window._roS = new ResizeObserver(draw); window._roS.observe(svg);
+}
+function drawDir(t) {
+  const svg = document.getElementById('fd').querySelector('svg');
+  const draw = () => { const W = svg.clientWidth, Hh = svg.clientHeight, pad = {l: 32, r: 8, t: 8, b: 20};
+    const X = i => pad.l + i / (H.length - 1) * (W - pad.l - pad.r), Y = v => pad.t + (1 - v / 360) * (Hh - pad.t - pad.b);
+    const dots = (a, col, r) => a.map((v, i) => v == null ? '' : `<circle cx="${X(i).toFixed(1)}" cy="${Y(v).toFixed(1)}" r="${r}" fill="${col}"/>`).join('');
+    svg.innerHTML = axes(svg, W, Hh, pad, 360, [0, 90, 180, 270, 360], v => ({0: 'N', 90: 'E', 180: 'S', 270: 'W', 360: 'N'}[v])) + dots(t.ts.wnear, '#2a78d6', 1.6) + dots(t.ts.wmod, '#eb6834', 1.6) + dots(t.ts.wobs, 'currentColor', 1.8);
+  };
+  if (window._roD) window._roD.disconnect(); window._roD = new ResizeObserver(draw); window._roD.observe(svg);
+}
+const start = DATA.trv.slice().sort((a, b) => a.rv40 - b.rv40)[0];
+select(start.id); paint();
+}
+</script>
+</body>
+</html>

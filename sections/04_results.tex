@@ -1,0 +1,30 @@
+\section{Results}
+\label{sec:results}
+% All numbers in orange are from the 12-day pilot (2026-11-13 to 11-25) and will be replaced.
+
+\subsection{Raw discrepancy between the networks}
+\todo{Table 1: raw ratio TrV/SMHI by station type; Fig.~2: scatter / ratio distribution.} With the nearest SMHI station scaled to \SI{6}{m}, the median station MAE is \prelim{1.5}~m\,s$^{-1}$ and the roadside wind is on average \prelim{about half} of the synoptic wind.
+
+\subsection{Correction ladder}
+\todo{Table 2 and Fig.~3: MAE, bias and correlation after each step of Eq.~\eqref{eq:ladder}.} Pilot values (median over 813 station pairs): MAE \prelim{1.75 $\rightarrow$ 1.56 $\rightarrow$ 1.37 $\rightarrow$ 1.30 $\rightarrow$ 0.74}~m\,s$^{-1}$; bias \prelim{$-57\% \rightarrow -14\%$}.
+
+\subsection{Site factors of the synoptic stations}
+\todo{Fig.~4: site factors by station and sector; table of geographic regression.} Pilot: factors range from \prelim{$\times0.40$ to $\times2.05$}; split-half stability \prelim{$r=0.99$}; the roughness conversion explains \prelim{about 40\%} of their variance; four geographic predictors explain \prelim{80\%} (leave-one-station-out).
+
+\subsection{Roadside exposure model}
+\todo{Table 3: coefficients with time-block ranges; partial-effect plots.} Pilot coefficients: near trees \prelim{$-0.30$}, forest within 1~km \prelim{$-0.16$}, $\ln(x/h)$ \prelim{$+0.09$}, $\ln U_\mathrm{net}$ \prelim{$+0.28$}, $\Delta T$ \prelim{$+0.023$~K$^{-1}$}.
+
+\subsection{Sensitivity to length scales and thresholds}
+\todo{Fig.~5: one-at-a-time sensitivity panels; Fig.~6: near $\times$ far tree-scale grid; Table 4: recommended ranges.}
+
+\subsection{Along-road correlation of exposure}
+\todo{Fig.~7: correlation of upwind features along the road; effect of segment-averaged features.} Pilot: local part decorrelates over \prelim{about 250~m}.
+
+\subsection{Combination and value of individual synoptic stations}
+\todo{Fig.~8: error vs number/radius of stations; station value controlled for distance and roadside station.}
+
+\subsection{Wind direction}
+\todo{}
+
+\subsection{Implication for air-drag estimation}
+\todo{}

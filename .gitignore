@@ -1,0 +1,33 @@
+# secrets: never commit
+.trv_key
+.lm_cred
+*.key
+.env
+
+# data (downloaded or derived; see code/README.md, section 5)
+data/
+output/
+*.parquet
+*.nc
+*.tif
+*.zip
+*.csv
+*.pkl
+
+# LaTeX build files (Overleaf builds its own)
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.synctex.gz
+*.toc
+main.pdf
+
+# python
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/

@@ -1,0 +1,55 @@
+\documentclass[preprint,12pt,authoryear]{elsarticle}
+% Target journal: Journal of Wind Engineering & Industrial Aerodynamics (Elsevier).
+% Backup: Meteorological Applications (RMetS). Companion paper with vehicle data: Vehicle System Dynamics.
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{siunitx}
+\usepackage{xcolor}
+\usepackage[colorlinks=true,citecolor=blue!60!black,linkcolor=blue!60!black,urlcolor=blue!60!black]{hyperref}
+\usepackage{lineno}
+\linenumbers
+\newcommand{\todo}[1]{\textcolor{red!70!black}{[TODO: #1]}}
+\newcommand{\prelim}[1]{\textcolor{orange!80!black}{#1}}   % numbers from the 12-day pilot, to be replaced
+\sisetup{detect-all}
+
+\journal{Journal of Wind Engineering \& Industrial Aerodynamics}
+
+\begin{document}
+\begin{frontmatter}
+
+\title{From weather stations to the roadside: explaining and correcting the change in near-surface wind with height, roughness, site and forest exposure, for vehicle air-drag estimation}
+
+\author[kth]{\todo{author names, order and affiliations}}
+\affiliation[kth]{organization={\todo{department}},
+            addressline={\todo{}}, city={Stockholm}, country={Sweden}}
+
+\input{sections/00_abstract}
+
+\begin{keyword}
+road weather stations \sep exposure correction \sep surface roughness \sep forest edge \sep wind downscaling \sep heavy vehicle air drag
+\end{keyword}
+\end{frontmatter}
+
+\input{sections/01_introduction}
+\input{sections/02_data}
+\input{sections/03_methods}
+\input{sections/04_results}
+\input{sections/05_discussion}
+\input{sections/06_conclusions}
+
+\section*{Data and code availability}
+SMHI observations (CC BY 4.0) and Trafikverket road-weather observations (Open API) are public; NMD land-cover and object-height layers are published by Naturvårdsverket; road geometry is from OpenStreetMap. The processing code (\texttt{smhi\_trv\_wind}) will be released at \todo{repository / Zenodo DOI}.
+
+\section*{Declaration of generative AI use}
+\todo{Required by the journal. Describe how an AI assistant was used (data processing code, analysis and drafting) and confirm that the authors reviewed and take full responsibility for the content.}
+
+\section*{CRediT authorship contribution statement}
+\todo{}
+
+\section*{Acknowledgements}
+\todo{funding, Volvo / KTH, data providers}
+
+\bibliographystyle{elsarticle-harv}
+\bibliography{refs}
+\end{document}

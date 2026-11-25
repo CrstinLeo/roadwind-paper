@@ -1,0 +1,26 @@
+\section{Study area and data}
+\label{sec:data}
+
+\subsection{Study area}
+The study area is the region within \SI{120}{km} of national road 40 (RV40) between Gothenburg and Borås in western Sweden (Fig.~\ref{fig:map}). The landscape is hilly (0--\SI{350}{m} a.s.l.) and dominated by coniferous forest interspersed with lakes, mires, farmland and the urban area of Gothenburg; the west coast and the Kattegat islands bound it to the west.
+
+\begin{figure}[t]
+\centering
+\fbox{\parbox{0.9\textwidth}{\centering\vspace{3cm}\todo{Fig.~1: map of SMHI stations (squares), TrV stations (circles), RV40, forest cover}\vspace{3cm}}}
+\caption{Study area. \todo{}}
+\label{fig:map}
+\end{figure}
+
+\subsection{Synoptic stations (SMHI)}
+Hourly wind speed and direction (10-min means at \SI{10}{m}) were obtained from the open-data service of SMHI for the \prelim{17} stations in the area that were active during the study period. The quality-controlled archive was used for the history (\prelim{2022-01-01 to 2026-11-13}) and the latest-months product for the test period. Airport stations report wind speed in whole \si{m.s^{-1}}; the other stations at \SI{0.1}{m.s^{-1}}.
+
+\subsection{Roadside stations (Trafikverket)}
+Trafikverket road weather stations measure wind with ultrasonic anemometers (Vaisala WMT700) at \SI{6}{m} above ground. The Open API provides 10-min means every \SI{5}{min} for the last seven days; the observations were therefore collected continuously from \prelim{2026-11-13} \todo{final period; ideally $\geq$ 12 months from the VViS archive}. Only on-the-hour samples were used, so that both networks represent the 10-min mean ending at the full hour. Stations with fewer than 100 valid hours were excluded, leaving \prelim{133} stations on about 130 different roads (motorways, national and county roads, urban streets).
+
+\subsection{Geodata}
+\begin{itemize}
+\item \textbf{Object height}: NMD 2023 additional layer ``object height 5--45~m'' (Naturvårdsverket), \SI{10}{m} resolution, derived from airborne laser scanning; classes 5--10, 10--15, \dots, $>$\SI{30}{m}, represented by the class centre.
+\item \textbf{Land cover}: NMD 2018 base layer, \SI{10}{m}; classes 61 (lakes) and 62 (sea) define open water.
+\item \textbf{Road axis}: the road bearing at each roadside station, from the OpenStreetMap road network (OSRM snapping).
+\item \todo{Terrain: Lantmäteriet 1~m elevation model (used for $S_x$, TPI; not retained in the final model).}
+\end{itemize}

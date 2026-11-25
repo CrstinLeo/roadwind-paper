@@ -1,0 +1,62 @@
+\section{Methods}
+\label{sec:methods}
+
+\subsection{Overview}
+For a roadside station $j$ and a synoptic station $s$ the hourly wind speed is transferred in four steps,
+\begin{equation}
+U_0 \xrightarrow{\text{height}} U_1 \xrightarrow{\text{roughness}} U_2 \xrightarrow{\text{site factor}} U_3 \xrightarrow{\text{roadside exposure}} U_4 ,
+\label{eq:ladder}
+\end{equation}
+and the estimates from several synoptic stations are combined (Section~\ref{sec:combine}). All direction-dependent quantities are evaluated in the 16 sectors of the wind-from direction of the network vector-mean wind, $k(t)$. Each step is evaluated separately, so that its contribution to the error reduction can be read directly (the ``correction ladder'').
+
+\subsection{Height conversion}
+Under neutral stratification over open terrain ($z_{0r}=\SI{0.03}{m}$),
+\begin{equation}
+U_1 = U_0\,\frac{\ln(z_j/z_{0r})}{\ln(z_s/z_{0r})},\qquad z_s=\SI{10}{m},\; z_j=\SI{6}{m},
+\end{equation}
+which gives a factor of 0.912.
+
+\subsection{Roughness conversion}
+Following \citet{Wieringa1986}, the wind at a blending height $z_b$ is assumed to be independent of the local surface. The measured wind is first converted to the potential wind over open terrain and then to the roadside,
+\begin{align}
+P(z_0) &= \frac{\ln(z_b/z_0)}{\ln(z_s/z_0)}\,\frac{\ln(z_s/z_{0r})}{\ln(z_b/z_{0r})}, &
+F(z_0) &= \frac{\ln(z_b/z_{0r})}{\ln(z_s/z_{0r})}\,\frac{\ln(z_j/z_0)}{\ln(z_b/z_0)}, \\
+U_2 &= U_0\,P\!\left(z_{0,s}(k)\right)\,F\!\left(z_{0,j}(k)\right), & z_b &= \SI{60}{m}.
+\end{align}
+The effective roughness length in sector $k$ is a footprint-weighted geometric mean,
+\begin{equation}
+\ln z_0(k) = \frac{\sum_i w_i \ln z_{0,i}}{\sum_i w_i},\qquad w_i = e^{-r_i/L},
+\end{equation}
+over the \SI{10}{m} pixels $i$ within $\pm\ang{22.5}$ of the upwind direction and $r_i\le\SI{2.5}{km}$, with $z_{0,i}=0.1\,h_i$ where the object height $h_i>\SI{5}{m}$, \SI{0.0002}{m} over water and $z_{0r}$ elsewhere. The footprint length is $L=\SI{100}{m}$ for both station types \todo{final choice after the sensitivity analysis}.
+
+\subsection{Site factors of the synoptic stations}
+Each synoptic station has a persistent exposure that the roughness conversion captures only partly (coast, hill tops, nearby obstacles). On the multi-year history the potential wind is decomposed as
+\begin{equation}
+\ln U_{\mathrm{pot},s}(t) = a(t) + c_s\!\left(k(t)\right) + \varepsilon_{s}(t),\qquad \sum_s c_s(k)=0,
+\end{equation}
+where $a(t)$ is the network-common term of hour $t$ and $c_s(k)$ the site factor of station $s$ in sector $k$ (8 sectors). The model is a two-way fixed-effects model, fitted by alternating least squares on hours with a network median speed $\ge\SI{3}{m.s^{-1}}$. The corrected wind is $U_3 = U_2\,e^{-c_s(k)}$. To interpret the site factors, they are regressed on upwind tree cover, roughness, distance to the coast and elevation.
+
+\subsection{Roadside exposure model}
+The remaining ratio between the roadside observation and $U_3$ is modelled as
+\begin{equation}
+\ln\frac{U_j}{U_3} = b_0 + b_1\,T_{100}(k) + b_2 \ln\frac{x}{h}(k) + b_3 \ln U_{\mathrm{net}} + b_4\,\Delta T + b_5\,T_{1000}(k) + \varepsilon ,
+\label{eq:exposure}
+\end{equation}
+where $T_R$ is the fraction of pixels with objects $>\SI{5}{m}$ within $R$~m upwind ($\pm\ang{22.5}$), $x/h$ the distance to the first upwind obstacle divided by its height, $U_{\mathrm{net}}$ the site-corrected network mean wind, and $\Delta T = T_{\mathrm{surface}}-T_{\mathrm{air}}$ the road-surface minus air temperature measured at the roadside station, a proxy for near-surface stability. The model is fitted by ordinary least squares on hours with $U_0\ge\SI{2}{m.s^{-1}}$; the back-transformation uses the smearing estimate \citep{Duan1983}.
+
+\subsection{Wind direction}
+Road corridors deflect the wind towards the road axis. With $\alpha$ the angle between the synoptic wind direction and the road axis,
+\begin{equation}
+\varphi_j = \varphi_s + d_0 + d_1 \sin(2\alpha)\,T_{200},
+\end{equation}
+a form analogous to the terrain-diverting factor of \citet{ListonElder2006}.
+
+\subsection{Combination of several synoptic stations}
+\label{sec:combine}
+The roadside wind speed is the weighted geometric mean of the estimates $U_{4,i}$ from all synoptic stations, with weights $w_i = d_i^{-1.5}$ ($d_i$ distance, floored at \SI{3}{km}); the direction is the weighted vector mean from stations within \SI{60}{km} ($w_i=d_i^{-1}$).
+
+\subsection{Validation design}
+Parameters are never evaluated on the data used to fit them. The test period is divided into four consecutive time blocks; the exposure and direction models are fitted on three blocks and on all roadside stations except the one predicted (leave-one-station-out), and evaluated on the remaining block. Every prediction is therefore out of time and out of station. Site factors are estimated only from the history before the test period. The score is the mean over stations of the hourly mean absolute error (MAE) of the wind speed; two settings are compared with paired differences per station and their standard error (SE). Length scales and thresholds are selected with the one-standard-error rule \citep{Roberts2017}\todo{check citation for the 1-SE rule; Hastie et al. is the usual reference}. A second, simpler check fits on the first part of the period and evaluates on the last part.
+
+\subsection{Implication for air drag}
+\todo{Propagate the wind errors (raw vs corrected) to the air-drag force with the crosswind drag model of \citet{Askerdal2024crosswind} for a tractor--semitrailer at 80~km\,h$^{-1}$ on the RV40 road axis; report the relative drag error.}
