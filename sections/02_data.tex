@@ -6,16 +6,16 @@ The study area is the region within \SI{120}{km} of national road 40 (RV40) betw
 
 \begin{figure}[t]
 \centering
-\fbox{\parbox{0.9\textwidth}{\centering\vspace{3cm}\todo{Fig.~1: map of SMHI stations (squares), TrV stations (circles), RV40, forest cover}\vspace{3cm}}}
-\caption{Study area. \todo{}}
+\includegraphics[width=\textwidth]{figures/fig01_study_area.pdf}
+\caption{Study area in western Sweden: SMHI synoptic stations (squares), Trafikverket roadside stations (circles, coloured by the mean absolute error of the corrected hourly wind speed, leave-one-station-out) and road RV40 between Gothenburg and Borås. Background: forest (green), open land and water from the NMD land-cover and object-height layers; grey areas lie outside the land-cover data used.}
 \label{fig:map}
 \end{figure}
 
 \subsection{Synoptic stations (SMHI)}
-Hourly wind speed and direction (10-min means at \SI{10}{m}) were obtained from the open-data service of SMHI for the \prelim{17} stations in the area that were active during the study period. The quality-controlled archive was used for the history (\prelim{2022-01-01 to 2026-11-13}) and the latest-months product for the test period. Airport stations report wind speed in whole \si{m.s^{-1}}; the other stations at \SI{0.1}{m.s^{-1}}.
+Hourly wind speed and direction (10-min means at \SI{10}{m}) were obtained from the open-data service of SMHI for the \nSmhi{} stations in the area that were active during the study period. The quality-controlled archive was used for the history (2022-01-01 to 2026-11-13, used only for the site factors) and the latest-months product for the test period. Airport stations report wind speed in whole \si{m.s^{-1}}; the other stations at \SI{0.1}{m.s^{-1}}.
 
 \subsection{Roadside stations (Trafikverket)}
-Trafikverket road weather stations measure wind with ultrasonic anemometers (Vaisala WMT700) at \SI{6}{m} above ground. The Open API provides 10-min means every \SI{5}{min} for the last seven days; the observations were therefore collected continuously from \prelim{2026-11-13} \todo{final period; ideally $\geq$ 12 months from the VViS archive}. Only on-the-hour samples were used, so that both networks represent the 10-min mean ending at the full hour. Stations with fewer than 100 valid hours were excluded, leaving \prelim{133} stations on about 130 different roads (motorways, national and county roads, urban streets).
+Trafikverket road weather stations measure wind with ultrasonic anemometers (Vaisala WMT700) at \SI{6}{m} above ground. The Open API provides 10-min means every \SI{5}{min} for the last seven days; the observations were therefore collected every few days from 2026-11-13 onwards \todo{extend the record; see the limitations}. Only on-the-hour samples were used, so that both networks represent the 10-min mean ending at the full hour. Stations with fewer than 100 valid hours were excluded, leaving \nTrv{} stations on about 130 different roads (motorways, national and county roads, urban streets). The analysed period is \prelim{\periodStart{} to \periodEnd{} UTC} (\nHours{} hours).
 
 \subsection{Geodata}
 \begin{itemize}

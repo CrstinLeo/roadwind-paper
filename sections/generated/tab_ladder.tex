@@ -1,0 +1,12 @@
+\begin{tabular}{lccc}
+\toprule
+Step & MAE median & MAE IQR & bias median \\
+ & [m\,s$^{-1}$] & [m\,s$^{-1}$] & \\
+\midrule
+Raw SMHI wind at \SI{10}{m} & 1.73 & 1.19--3.38 & -56\,\% \\
++ height conversion to \SI{6}{m} & 1.58 & 1.09--3.00 & -51\,\% \\
++ two-step roughness conversion & 1.27 & 0.91--2.31 & -44\,\% \\
++ SMHI site factor & 1.27 & 1.04--1.57 & -46\,\% \\
++ roadside exposure model & 0.74 & 0.59--0.98 & -14\,\% \\
+\bottomrule
+\end{tabular}

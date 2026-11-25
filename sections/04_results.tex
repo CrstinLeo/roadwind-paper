@@ -1,30 +1,97 @@
 \section{Results}
 \label{sec:results}
-% All numbers in orange are from the 12-day pilot (2026-11-13 to 11-25) and will be replaced.
-
-\subsection{Raw discrepancy between the networks}
-\todo{Table 1: raw ratio TrV/SMHI by station type; Fig.~2: scatter / ratio distribution.} With the nearest SMHI station scaled to \SI{6}{m}, the median station MAE is \prelim{1.5}~m\,s$^{-1}$ and the roadside wind is on average \prelim{about half} of the synoptic wind.
+% Numbers come from sections/generated/numbers.tex (code/scripts/10_paper_tables.py).
+% They describe the pilot record (\nHours{} hours) and are shown in orange where they will change with a longer record.
 
 \subsection{Correction ladder}
-\todo{Table 2 and Fig.~3: MAE, bias and correlation after each step of Eq.~\eqref{eq:ladder}.} Pilot values (median over 813 station pairs): MAE \prelim{1.75 $\rightarrow$ 1.56 $\rightarrow$ 1.37 $\rightarrow$ 1.30 $\rightarrow$ 0.74}~m\,s$^{-1}$; bias \prelim{$-57\% \rightarrow -14\%$}.
+\label{sec:res-ladder}
+Table~\ref{tab:ladder} and Fig.~\ref{fig:ladder} follow the hourly wind speed of the \nPairsEighty{} pairs of a roadside station and a synoptic station less than \SI{80}{km} apart through the four steps of Eq.~\eqref{eq:ladder}. Without correction the synoptic stations overestimate the roadside wind by about a factor of two: the median pair error is \prelim{\ladRawMae}~m\,s$^{-1}$ and the median bias \prelim{\ladRawBias\,\%}. Converting the measurement height removes only a small part of the error (\prelim{\ladHeightMae}~m\,s$^{-1}$). The two-step roughness conversion has a larger effect (\prelim{\ladRoughMae}~m\,s$^{-1}$, bias \prelim{\ladRoughBias\,\%}), because most synoptic stations stand in open terrain whereas the roadside stations are surrounded by forest. The site factors hardly change the median pair error but narrow its spread between pairs (Table~\ref{tab:ladder}), because they remove the systematic differences between synoptic stations (Section~\ref{sec:res-site}). The roadside exposure model reduces the median error to \prelim{\ladExpoMae}~m\,s$^{-1}$ and the bias to \prelim{\ladExpoBias\,\%}.
+
+\begin{table}[t]
+\centering
+\caption{Correction ladder: hourly wind-speed error of \nPairsEighty{} station pairs ($\le\SI{80}{km}$) after each step. The roadside exposure model is evaluated leave-one-station-out. Bias $=U_\mathrm{TrV}/U-1$ (geometric mean over hours with $U_0\ge\SI{2}{m.s^{-1}}$); negative values mean that the estimate is too high.}
+\label{tab:ladder}
+\input{sections/generated/tab_ladder}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\textwidth]{figures/fig03_correction_ladder.pdf}
+\caption{Correction ladder for \nPairsEighty{} station pairs: (a) mean absolute error and (b) bias of the hourly wind speed after each step; line: median over pairs, band: interquartile range.}
+\label{fig:ladder}
+\end{figure}
 
 \subsection{Site factors of the synoptic stations}
-\todo{Fig.~4: site factors by station and sector; table of geographic regression.} Pilot: factors range from \prelim{$\times0.40$ to $\times2.05$}; split-half stability \prelim{$r=0.99$}; the roughness conversion explains \prelim{about 40\%} of their variance; four geographic predictors explain \prelim{80\%} (leave-one-station-out).
+\label{sec:res-site}
+Before any correction, the synoptic stations differ systematically by a factor of five: relative to the network, the wind at \sfRawMinName{} is $\times$\sfRawMin{} and at \sfRawMaxName{} $\times$\sfRawMax{} (Fig.~\ref{fig:site}a). The factors are persistent: estimated separately from 2022--2023 and from 2024--2026, they correlate with $r=\sfStability$. The roughness conversion explains \prelim{\sfPhysShare\,\%} of their variance across stations and narrows the range to \sfPotMin--\sfPotMax; the coastal and island stations remain strongly exposed and several inland stations sheltered. The remaining factors depend on the wind direction (Fig.~\ref{fig:site}b), e.g.\ coastal stations are most exposed to winds from the sea.
+
+Four geographic predictors explain \sfGeoRtwo\,\% of the uncorrected site factors (leave-one-station-out): the upwind tree share within \SI{200}{m} (coefficient \sfGeoTree), the roughness length within \SI{1}{km} (\sfGeoZo{} per unit $\ln z_0$), the distance to the coast (\sfGeoCoast{} per unit $\ln(1+d/\mathrm{km})$) and the elevation (\sfGeoElev{} per \SI{100}{m}). The same predictors appear in the roadside exposure model (Section~\ref{sec:res-model}), i.e.\ synoptic and roadside stations obey a common exposure law.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\textwidth]{figures/fig04_site_factors.pdf}
+\caption{Site factors of the SMHI stations, estimated from \nSiteHours{} hours of 2022--2026. (a) Station mean before (grey) and after (blue) the roughness conversion. (b) Site factor by sector of the network wind direction after the roughness conversion.}
+\label{fig:site}
+\end{figure}
 
 \subsection{Roadside exposure model}
-\todo{Table 3: coefficients with time-block ranges; partial-effect plots.} Pilot coefficients: near trees \prelim{$-0.30$}, forest within 1~km \prelim{$-0.16$}, $\ln(x/h)$ \prelim{$+0.09$}, $\ln U_\mathrm{net}$ \prelim{$+0.28$}, $\Delta T$ \prelim{$+0.023$~K$^{-1}$}.
+\label{sec:res-model}
+Table~\ref{tab:coefs} gives the coefficients of Eq.~\eqref{eq:exposure}. All terms keep their sign and similar size when the model is fitted on any three of the four time blocks. With the other terms fixed, a fully tree-covered sector within \SI{100}{m} reduces the roadside wind by a factor $e^{\coNear}$, and a fully forested landscape within \SI{1}{km} by a further $e^{\coFar}$. Larger distances to the first upwind obstacle increase the wind ($b_2=\coLnxh$ per unit $\ln(x/h)$). The positive coefficient of $\ln U_\mathrm{net}$ (\coLnU) means that the ratio between roadside and corrected synoptic wind increases with the regional wind speed. For the direction, the roadside wind is turned by $d_0=\coDzero^\circ$ on average, and at tree-lined sections it is turned towards the road axis by up to $|d_1|$ with $d_1=\coDone^\circ$.
+
+\begin{table}[t]
+\centering
+\caption{Coefficients of the roadside exposure model, Eq.~\eqref{eq:exposure}, and of the direction model, fitted on all hours; range of the estimates when one of the four time blocks is left out. Smearing factor $S=\coSmear$.}
+\label{tab:coefs}
+\input{sections/generated/tab_coefs}
+\end{table}
+
+\subsection{Overall skill out of time and out of station}
+\label{sec:res-skill}
+In the blocked cross-validation, every estimate is made for an hour and a roadside station that were not used for fitting. The median station MAE of the final model is \prelim{\cvFinalMed}~m\,s$^{-1}$ (mean \prelim{\cvFinalMean}), compared with \prelim{\cvRawMed}~m\,s$^{-1}$ for the nearest synoptic station scaled to \SI{6}{m}, a reduction by \prelim{\cvReduction\,\%}; the model is better than this reference at \prelim{\cvBetter} of \nTrv{} stations. The median direction error is \prelim{\cvDir}$^\circ$ against \prelim{\cvDirRaw}$^\circ$. Out of time, the model underestimates the roadside wind by about \prelim{\cvBias\,\%} (median), whereas the bias is close to zero when fitted and evaluated on the same hours; the difference is a regional, time-varying error that a static model cannot remove (Section~\ref{sec:discussion}).
 
 \subsection{Sensitivity to length scales and thresholds}
-\todo{Fig.~5: one-at-a-time sensitivity panels; Fig.~6: near $\times$ far tree-scale grid; Table 4: recommended ranges.}
+\label{sec:res-sens}
+Figure~\ref{fig:sens} shows the change in cross-validated MAE when one setting is varied. The physical parameters of the roughness conversion are insensitive: footprint lengths between \SIrange{25}{2000}{m}, blending heights between \SIrange{30}{150}{m} and $z_0/h$ between 0.05 and 0.15 change the error by at most \SI{0.007}{m.s^{-1}}, mostly within one standard error. In contrast, omitting the site factors increases the error by about \SI{0.05}{m.s^{-1}}, while resolving them by direction gives no significant gain over a single factor per station. The radius of the upwind tree share has two optima, near \SI{100}{m} and near \SI{1}{km}, with poorer results in between (Fig.~\ref{fig:sens}e); this motivates the two shelter scales analysed in Fig.~\ref{fig:twoscale}. Combining synoptic stations only within \SI{40}{km} or less increases the error by \SIrange{0.025}{0.05}{m.s^{-1}}; using all stations with weights $d^{-1}$ to $d^{-2}$ is best. A minimum synoptic wind speed of \SIrange{1.5}{2}{m.s^{-1}} for fitting is optimal.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\textwidth]{figures/fig05_sensitivity.pdf}
+\caption{Sensitivity of the cross-validated MAE (mean over roadside stations, paired difference to the round-6 reference configuration, $\pm1$ standard error) to (a, b) the footprint length of the roughness length, (c) the blending height, (d) the site factors, (e) the radius of the upwind tree share, (f) along-road averaging of the features, (g) the radius and (h) the weight exponent of the station combination. Squares: chosen values.}
+\label{fig:sens}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\textwidth]{figures/fig06_two_shelter_scales.pdf}
+\caption{Two shelter scales: cross-validated MAE difference ($\pm$ SE) for combinations of the near-tree radius and the landscape forest fraction, relative to \SI{100}{m} and \SI{1}{km}.}
+\label{fig:twoscale}
+\end{figure}
+
+With both scales in the model, a near radius of \SIrange{50}{100}{m} is best; \SI{150}{m} and \SI{200}{m} are worse by \SIrange{0.007}{0.009}{m.s^{-1}} (more than two standard errors). The landscape term helps only at about \SI{1}{km}; forest fractions within \SIrange{300}{500}{m} add nothing, and the result hardly depends on whether the forest fraction is taken in the upwind sector, a \ang{180} sector or all directions.
 
 \subsection{Along-road correlation of exposure}
-\todo{Fig.~7: correlation of upwind features along the road; effect of segment-averaged features.} Pilot: local part decorrelates over \prelim{about 250~m}.
+\label{sec:res-along}
+The exposure features change quickly along the road (Fig.~\ref{fig:along}a). Their correlation with the value at the station is about 0.85 at \SI{100}{m}, 0.6--0.7 at \SI{250}{m} and levels off at about 0.37 beyond \SI{750}{m}, the part shared by the whole landscape. The local part therefore decorrelates over about \SI{250}{m}. Replacing the point features by averages over a road segment does not degrade the estimate for segments up to \SI{200}{m} long, whereas longer segments tend to increase the error (Fig.~\ref{fig:along}b).
 
-\subsection{Combination and value of individual synoptic stations}
-\todo{Fig.~8: error vs number/radius of stations; station value controlled for distance and roadside station.}
+\begin{figure}[t]
+\centering
+\includegraphics[width=\textwidth]{figures/fig07_along_road.pdf}
+\caption{(a) Correlation of the upwind features at a distance along the road with their value at the roadside station (all stations and sectors). (b) Change in cross-validated MAE when the features are averaged over a road segment of length $2S$ centred on the station.}
+\label{fig:along}
+\end{figure}
 
-\subsection{Wind direction}
-\todo{}
+\subsection{Model variants}
+\label{sec:res-variants}
+Table~\ref{tab:variants} compares the final model with variants. Compared with the reference configuration (single tree scale of \SI{200}{m}, speed--shelter interaction, combination within \SI{60}{km}) the final model reduces the error by \prelim{\cvDiff~$\pm$~\cvDiffSE}~m\,s$^{-1}$. The stability proxy and the cross-road wind component change the error by less than one standard error, and the stability coefficient changed sign between time blocks, so neither is retained. Removing the roughness conversion from the reference model increases its error by about \SI{0.01}{m.s^{-1}}; in the final model the two forest scales largely take over its role, but its omission still increases the median error and the bias. A gradient-boosting model with all features and terrain indices is worse than the linear model, indicating that the linear form exhausts the information in these predictors for the available data.
+
+\begin{table}[t]
+\centering
+\caption{Cross-validated wind-speed error of model variants (blocked time $\times$ leave-one-station-out); $\Delta$: paired difference to the final model $\pm$ standard error over roadside stations.}
+\label{tab:variants}
+\small
+\input{sections/generated/tab_variants}
+\end{table}
 
 \subsection{Implication for air-drag estimation}
-\todo{}
+\label{sec:res-drag}
+\todo{Session 2: propagate raw and corrected wind to the crosswind drag model.}

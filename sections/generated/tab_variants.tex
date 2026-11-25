@@ -1,0 +1,15 @@
+\begin{tabular}{p{0.40\textwidth}ccc}
+\toprule
+Model & mean MAE & median MAE & $\Delta$ vs final \\
+ & [m\,s$^{-1}$] & [m\,s$^{-1}$] & [m\,s$^{-1}$] \\
+\midrule
+Final model & 0.692 & 0.612 & -- \\
+Single tree scale (200 m), $\ln U\times T$ interaction, 60 km combination & 0.720 & 0.628 & +0.029 $\pm$ 0.005 \\
+Final + stability proxy $\Delta T$ & 0.691 & 0.606 & -0.000 $\pm$ 0.001 \\
+Final + $\Delta T$ + cross-road $\times$ tree & 0.689 & 0.611 & -0.002 $\pm$ 0.002 \\
+Final + $\Delta T$, without roughness conversion & 0.686 & 0.626 & -0.005 $\pm$ 0.007 \\
+Round-6 model without roughness conversion & 0.730 & 0.643 & +0.039 $\pm$ 0.010 \\
+Round-6 model without site factors & 0.768 & 0.699 & +0.076 $\pm$ 0.014 \\
+Gradient boosting, all features + terrain & 0.742 & 0.685 & +0.051 $\pm$ 0.013 \\
+\bottomrule
+\end{tabular}
