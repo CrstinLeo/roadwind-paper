@@ -1,3 +1,11 @@
 \section{Conclusions}
 \label{sec:conclusions}
-\todo{Write last. Four to five numbered findings matching the contributions in Section~\ref{sec:intro}.}
+We quantified how near-surface wind changes from synoptic stations to roadside road-weather stations in central Norway and western Sweden and corrected it with open measurements and open geodata. The main findings are:
+\begin{enumerate}
+\item Without correction the synoptic stations overestimate the roadside wind by about a factor of two. A correction chain of height and roughness conversion, a site factor per reference station, a roadside exposure model and the combination of all reference stations reduces the median station error of the hourly wind speed by \noCvRed\,\% in Norway and \seCvRed\,\% in Sweden, evaluated out of time and out of station.
+\item Forest reduces the roadside wind at two distinct scales, the trees within about \SI{100}{m} and the forest fraction of the landscape within about \SI{1}{km}; intermediate scales add nothing. In mountainous terrain the landscape forest fraction dominates, and terrain indices add no skill.
+\item Combining all corrected reference stations is far better than using the nearest one. One persistent site factor per station is sufficient.
+\item The model form transfers between the two countries and its coefficients are stable in time, but part of the coefficients is regional and should be refitted where roadside stations exist.
+\item At vehicle height the station-based estimate is better than the nearest stations but not better than the MET Nordic analysis; the exposure features decorrelate along the road over about \SI{250}{m}, which bounds the length of road segments in vehicle studies. For a tractor--semitrailer at \SI{80}{km.h^{-1}} the corrected wind reduces the median air-drag error at the roadside stations from \noDragRaw{} to \noDragModel\,\% (Norway) and from \seDragRaw{} to \seDragModel\,\% (Sweden).
+\end{enumerate}
+The natural next step is an online fusion of analysis, stations and connected vehicles, with the exposure model of this paper as the link between the regional wind and the road segment.

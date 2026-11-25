@@ -1,26 +1,31 @@
-\section{Study area and data}
+\section{Study regions and data}
 \label{sec:data}
 
-\subsection{Study area}
-The study area is the region within \SI{120}{km} of national road 40 (RV40) between Gothenburg and Borås in western Sweden (Fig.~\ref{fig:map}). The landscape is hilly (0--\SI{350}{m} a.s.l.) and dominated by coniferous forest interspersed with lakes, mires, farmland and the urban area of Gothenburg; the west coast and the Kattegat islands bound it to the west.
+\subsection{Regions}
+The main region is Trøndelag--Dovre in central Norway, within \SI{170}{km} of \ang{63.2}\,N, \ang{10.0}\,E (Fig.~\ref{fig:map-no}). It spans the outer coast with islands and skerries, the Trondheimsfjord, forested valleys and the Dovre mountain plateau above \SI{1000}{m}; the roads follow valleys and fjords. The second region is the area within \SI{120}{km} of road RV40 between Gothenburg and Borås in western Sweden (Fig.~\ref{fig:map-se}), a hilly (0--\SI{350}{m}) landscape dominated by coniferous forest interspersed with lakes, mires and farmland.
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=\textwidth]{figures/fig01_study_area.pdf}
-\caption{Study area in western Sweden: SMHI synoptic stations (squares), Trafikverket roadside stations (circles, coloured by the mean absolute error of the corrected hourly wind speed, leave-one-station-out) and road RV40 between Gothenburg and Borås. Background: forest (green), open land and water from the NMD land-cover and object-height layers; grey areas lie outside the land-cover data used.}
-\label{fig:map}
+\includegraphics[width=\textwidth]{figures/fig01_norway_area.pdf}
+\caption{Norwegian study region: reference stations of MET Norway and Avinor (squares), road weather stations of Statens vegvesen (circles, coloured by the cross-validated mean absolute error of the corrected hourly wind speed) and the two road sections with vehicle measurements (stars). Background: forest, open land and water from ESA WorldCover.}
+\label{fig:map-no}
 \end{figure}
 
-\subsection{Synoptic stations (SMHI)}
-Hourly wind speed and direction (10-min means at \SI{10}{m}) were obtained from the open-data service of SMHI for the \nSmhi{} stations in the area that were active during the study period. The quality-controlled archive was used for the history (2022-01-01 to 2026-11-13, used only for the site factors) and the latest-months product for the test period. Airport stations report wind speed in whole \si{m.s^{-1}}; the other stations at \SI{0.1}{m.s^{-1}}.
+\subsection{Reference stations}
+In Norway the reference network consists of the \noRef{} stations of MET Norway and Avinor (airports) in the region that report hourly wind at \SI{10}{m}; data were obtained from the Frost API of MET Norway. In Sweden the \seRef{} synoptic stations of the Swedish Meteorological and Hydrological Institute (SMHI) in the region were used (10-min means at \SI{10}{m}, open data). Swedish airport stations report wind speed in whole \si{m.s^{-1}}. The year 2023 (Norway) and 2022-01 to 2026-11-13 (Sweden) were used only to estimate the site factors of the reference stations (Section~\ref{sec:methods}).
 
-\subsection{Roadside stations (Trafikverket)}
-Trafikverket road weather stations measure wind with ultrasonic anemometers (Vaisala WMT700) at \SI{6}{m} above ground. The Open API provides 10-min means every \SI{5}{min} for the last seven days; the observations were therefore collected every few days from 2026-11-13 onwards \todo{extend the record; see the limitations}. Only on-the-hour samples were used, so that both networks represent the 10-min mean ending at the full hour. Stations with fewer than 100 valid hours were excluded, leaving \nTrv{} stations on about 130 different roads (motorways, national and county roads, urban streets). The analysed period is \prelim{\periodStart{} to \periodEnd{} UTC} (\nHours{} hours).
+\subsection{Roadside stations}
+Statens vegvesen road weather stations in the Norwegian region report 10-min wind, distributed through Frost with a sensor level of \SI{10}{m} above ground; on-the-hour values from 2024-01-01 to 2025-11-24 (\noHours{} hours) were used. Speeds were checked for implausible values and stuck sensors (the same value in six or more consecutive hours, twelve for zero), which removed 0.8\,\% of the values; \noTrv{} stations with at least 2000 valid hours were retained. Trafikverket road weather stations in Sweden measure wind with Vaisala WMT700 anemometers at \SI{6}{m}; their open API provides only the last seven days, so observations were collected every few days from 2026-11-13, giving \seHours{} hours at \seTrv{} stations. Both networks were sampled at the full hour, so that all stations represent the 10-min mean ending at the hour.
 
 \subsection{Geodata}
-\begin{itemize}
-\item \textbf{Object height}: NMD 2023 additional layer ``object height 5--45~m'' (Naturvårdsverket), \SI{10}{m} resolution, derived from airborne laser scanning; classes 5--10, 10--15, \dots, $>$\SI{30}{m}, represented by the class centre.
-\item \textbf{Land cover}: NMD 2018 base layer, \SI{10}{m}; classes 61 (lakes) and 62 (sea) define open water.
-\item \textbf{Road axis}: the road bearing at each roadside station, from the OpenStreetMap road network (OSRM snapping).
-\item \todo{Terrain: Lantmäteriet 1~m elevation model (used for $S_x$, TPI; not retained in the final model).}
-\end{itemize}
+Object heights were taken from airborne laser scanning in both countries: in Norway as the difference between the national digital surface and terrain models of Kartverket, resampled to \SI{10}{m}; in Sweden from the NMD object-height layer of Naturvårdsverket (\SI{10}{m}, classes of \SI{5}{m}). Objects higher than \SI{5}{m} are counted as trees or obstacles in both countries. Open water was taken from ESA WorldCover (Norway) and the NMD land-cover layer (Sweden). The road axis at each roadside station was obtained by snapping the station to the OpenStreetMap road network.
+
+\subsection{Vehicle measurements}
+The NOR-XWIND data set \citep{NORXWIND} contains wind measured with an ultrasonic anemometer on a van (sensor \SI{3.4}{m} above ground) together with high-rate GNSS and inertial data. Two road sections lie in the Norwegian region: the E6 across Dovre (2020-10-29 and 2020-10-31, a mountain valley) and Frøya (2020-11-05, open coast). The anemometer orientation and gain were calibrated with the consistency of opposite driving directions, and the ground-fixed wind was averaged over road segments; \vehN{} segment passages were available (\vehNDovre{} at Dovre, \vehNFroya{} at Frøya). The MET Nordic analysis \citep{MetNordic}, interpolated to the segments, is used as an independent benchmark at vehicle height.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.85\textwidth]{figures/fig02_sweden_area.pdf}
+\caption{Swedish study region: SMHI synoptic stations (squares), Trafikverket roadside stations (circles, coloured by the mean absolute error of the corrected wind speed) and road RV40.}
+\label{fig:map-se}
+\end{figure}
