@@ -18,7 +18,7 @@ import pandas as pd
 
 from . import evaluate
 from .config import Settings
-from .data import smhi as smhi_data, trafikverket as trv_data
+from .data import sources
 from .features.gis import sector_tables
 from .geo import bearing_deg, haversine_km, sector
 from .model import combine as comb, exposure, physics, site_factors
@@ -42,6 +42,7 @@ class Result:
 
 def build_pairs(cfg: Settings, tabs: dict, site: site_factors.SiteFactors):
     """steps 1-3 for every (TrV, SMHI) pair within cfg.max_pair_km, hour by hour"""
+    smhi_data, trv_data = sources(cfg)
     H = cfg.hours
     SM = smhi_data.stations(cfg)
     TM = trv_data.stations(cfg)
@@ -86,6 +87,7 @@ def run(cfg: Settings | None = None, verbose: bool = True) -> Result:
     cfg = cfg or Settings()
     log = print if verbose else (lambda *a, **k: None)
     tabs = sector_tables(cfg)
+    smhi_data, trv_data = sources(cfg)
     wsL, wdL = smhi_data.history(cfg)
     potL, _ = physics.potential_wind(wsL, wdL, tabs["z0_smhi"], cfg)
     site_raw = site_factors.fit(wsL, wdL, cfg)                                  # for comparison only

@@ -45,9 +45,16 @@ def station_variants(cfg: Settings, src: str, sid: str, lat: float, lon: float, 
     L, _ = merge(srcs, bounds=(x - HALF_WIN, y - HALF_WIN, x + HALF_WIN, y + HALF_WIN), res=RES, nodata=0, method="max")
     L = L[0]
     Hm = object_height(cfg, x, y, HALF_WIN, out_shape=L.shape)
+    return variants_from_arrays(cfg, src, sid, Hm, np.isin(L, [61, 62]), road_bearing)
+
+
+def variants_from_arrays(cfg: Settings, src: str, sid: str, Hm: np.ndarray, water: np.ndarray,
+                         road_bearing: float | None) -> list[dict]:
+    """same features from a square 10 m grid centred on the station: object height Hm [m] (0 where no object
+    > 5 m) and a water mask. Used for Sweden (NMD) and Norway (Kartverket DOM - DTM, ESA WorldCover)."""
     tree = Hm > 0
-    lnz0 = np.log(np.where(tree, cfg.z0_tree_factor * Hm, np.where(np.isin(L, [61, 62]), cfg.z0_water, cfg.z0_open)))
-    n = L.shape[0]
+    lnz0 = np.log(np.where(tree, cfg.z0_tree_factor * np.maximum(Hm, 0.5), np.where(water, cfg.z0_water, cfg.z0_open)))
+    n = Hm.shape[0]
     r, az = _polar(n)
     inner = (r >= 10) & (r <= HALF_WIN)
     W = {Lf: np.exp(-r / Lf) for Lf in set(TREE_L) | set(Z0_L)}

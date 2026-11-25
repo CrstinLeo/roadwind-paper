@@ -66,7 +66,11 @@ def tree_features(cfg: Settings, src: str, sid: str, lat: float, lon: float) -> 
 
 def edge_features(cfg: Settings, src: str, sid: str, lat: float, lon: float) -> list[dict]:
     x, y = TO_SWEREF.transform(lon, lat)
-    Hm = object_height(cfg, x, y, 2000)
+    return edge_from_array(cfg, src, sid, object_height(cfg, x, y, 2000))
+
+
+def edge_from_array(cfg: Settings, src: str, sid: str, Hm: np.ndarray) -> list[dict]:
+    """distance to and height of the first upwind obstacle > 5 m on a 10 m grid centred on the station"""
     _, _, c = _polar(Hm.shape[0])
     d = np.arange(5, 1505, 5.0)
     rows = []
@@ -143,6 +147,18 @@ def build_all(cfg: Settings, trv: pd.DataFrame, smhi: pd.DataFrame) -> None:
 def sector_tables(cfg: Settings) -> dict[str, pd.DataFrame]:
     """[station x sector] tables used by the pipeline"""
     rd = lambda p: pd.read_parquet(p).assign(id=lambda d: d.id.astype(str))
+    if not cfg.paths.feat_z0.exists():                      # Norway: everything from the variants table
+        Vv, E = rd(cfg.paths.feat_variants), rd(cfg.paths.feat_edge)
+        piv = lambda D, src, col: D[D.src == src].pivot(index="id", columns="dir", values=col)
+        ex = lambda src, L: np.exp(piv(Vv, src, f"lnz0_L{int(L)}_H22.5"))
+        out = dict(z0_smhi=ex("smhi", cfg.footprint_L_smhi), z0_trv=ex("trv", cfg.footprint_L_trv), z0_smhi_1km=ex("smhi", 1000),
+                   coast_smhi=pd.Series(dtype=float), tree_smhi=piv(Vv, "smhi", "tree_R200_H22.5"),
+                   lnxh_trv=np.log(piv(E, "trv", "xh_edge").clip(*cfg.xh_clip)),
+                   tree_trv=piv(Vv, "trv", f"tree_R{cfg.tree_near_radius}_H22.5"),
+                   tree_dir_trv=piv(Vv, "trv", f"tree_R{cfg.tree_dir_radius}_H22.5"))
+        if cfg.tree_far_radius:
+            out["tree_far_trv"] = piv(Vv, "trv", f"tree_R{cfg.tree_far_radius}_H22.5")
+        return out
     Z, T, E = rd(cfg.paths.feat_z0), rd(cfg.paths.feat_tree), rd(cfg.paths.feat_edge)
     piv = lambda D, src, col: D[D.src == src].pivot(index="id", columns="dir", values=col)
     out = dict(

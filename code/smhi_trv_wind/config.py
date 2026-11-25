@@ -63,6 +63,8 @@ class Paths:
 
 @dataclass
 class Settings:
+    country: str = os.environ.get("SWW_COUNTRY", "SE")   # SE: SMHI + Trafikverket; NO: MET/Avinor + Statens vegvesen
+
     # ---------------- periods
     train_start: str = "2022-01-01"                 # [choice] SMHI history for site factors
     train_end: str = "2026-11-13 19:00"             # [choice] must end before the test period
@@ -113,6 +115,15 @@ class Settings:
     min_trv_hours: int = 100                        # [choice] TrV stations with >= 100 valid hours
 
     paths: Paths = field(default_factory=Paths)
+
+    @classmethod
+    def norway(cls, **kw) -> "Settings":
+        """Trøndelag-Dovre study region (MET Norway / Avinor reference stations, Statens vegvesen roadside stations);
+        2023 trains the site factors, 2024-01 to 2025-11 is the test period."""
+        base = dict(country="NO", train_start="2023-01-01", train_end="2023-12-31 23:00", test_start="2024-01-01 00:00",
+                    test_end="2025-11-24 23:00", z_trv=10.0, min_trv_hours=2000, site_min_stations=10)
+        base.update(kw)
+        return cls(**base)
 
     @classmethod
     def round6(cls, **kw) -> "Settings":

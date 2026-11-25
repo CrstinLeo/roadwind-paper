@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 
 from .config import Settings
-from .data import smhi as smhi_data, trafikverket as trv_data
+from .data import sources
 from .geo import haversine_km, sector, wrap180, wrap90
 from .model import physics
 from .model.physics import network_direction
@@ -59,12 +59,11 @@ class Engine:
         self.cfg = cfg
         H = pd.date_range(pd.Timestamp(cfg.test_start, tz="UTC"), pd.Timestamp(t_end, tz="UTC"), freq="1h")
         self.H, self.A = H, (H < pd.Timestamp(t_split, tz="UTC"))
+        smhi_data, trv_data = sources(cfg)
         SM, TM = smhi_data.stations(cfg), trv_data.stations(cfg)
         tws, twd = trv_data.wind_matrices(cfg, H, ids=TM.index)
         keep = tws.columns[tws.notna().sum() >= cfg.min_trv_hours]
-        o = pd.read_parquet(cfg.paths.trv_obs); o["id"] = o.id.astype(str)
-        o = o[(o.time.dt.minute == 0) & o.id.isin(keep)]
-        dT = (o.pivot_table(index="time", columns="id", values="t_surf") - o.pivot_table(index="time", columns="id", values="t_air"))
+        dT = trv_data.temperature_difference(cfg, H, ids=keep)
         self.TM, self.SM = TM.loc[keep], SM
         self.tws, self.twd = tws[keep].values, twd[keep].values
         self.dT = dT.reindex(index=H, columns=keep).values
@@ -75,8 +74,12 @@ class Engine:
         V = variants.copy(); V["id"] = V.id.astype(str)
         self.Vt = {c: V[V.src == "trv"].pivot(index="id", columns="dir", values=c) for c in V.columns if c not in ("src", "id", "dir")}
         self.Vs = {c: V[V.src == "smhi"].pivot(index="id", columns="dir", values=c) for c in V.columns if c not in ("src", "id", "dir")}
-        F1 = pd.read_parquet(cfg.paths.feat_tree); F1["id"] = F1.id.astype(str); F1 = F1[F1.src == "trv"]
-        self.terrain = {c: F1.pivot(index="id", columns="dir", values=c) for c in ("sx", "tpi_1km", "h_mid")}
+        if cfg.paths.feat_tree.exists():
+            F1 = pd.read_parquet(cfg.paths.feat_tree); F1["id"] = F1.id.astype(str); F1 = F1[F1.src == "trv"]
+            self.terrain = {c: F1.pivot(index="id", columns="dir", values=c) for c in ("sx", "tpi_1km", "h_mid")}
+        else:                                   # terrain indices only exist for Sweden
+            empty = pd.DataFrame(np.nan, index=self.TM.index, columns=np.arange(0, 360, 22.5))
+            self.terrain = {c: empty for c in ("sx", "tpi_1km", "h_mid")}
         E = pd.read_parquet(cfg.paths.feat_edge); E["id"] = E.id.astype(str)
         self.lnxh = np.log(E[E.src == "trv"].pivot(index="id", columns="dir", values="xh_edge").clip(*cfg.xh_clip))
         self.road = trv_data.road_bearing(cfg).reindex(self.TM.index).values
