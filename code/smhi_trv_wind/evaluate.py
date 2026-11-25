@@ -44,8 +44,10 @@ def pair_metrics(D: pd.DataFrame) -> pd.DataFrame:
     return D.groupby(["trv", "smhi"]).apply(f).reset_index()
 
 
-def ladder(P: pd.DataFrame) -> pd.DataFrame:
-    """median over pairs of every correction step"""
+def ladder(P: pd.DataFrame, max_km: float | None = 80.0) -> pd.DataFrame:
+    """median over pairs (within max_km) of every correction step"""
+    if max_km is not None:
+        P = P[P.dist <= max_km]
     return pd.DataFrame([dict(step=LEVEL_NAMES[L], mae=P[f"mae_{L}"].median(), bias=P[f"bias_{L}"].median(),
                               mean_error=P[f"mb_{L}"].median()) for L in LEVELS])
 

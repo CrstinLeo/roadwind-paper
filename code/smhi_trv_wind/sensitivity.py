@@ -320,6 +320,6 @@ def one_se_range(df: pd.DataFrame, value_col: str, score: str = "A_mae_mean", se
 
 
 # Recommended model after round 7 (M6): see ModelA_round7_sensitivity_and_improvements.ipynb
-RECOMMENDED = Spec(interaction=False, tree="tree_R100_H22.5", extra=("stab", "v:tree_R1000_H22.5"),
+RECOMMENDED = Spec(interaction=False, tree="tree_R100_H22.5", extra=("v:tree_R1000_H22.5",),
                    km=150, min_n=1, power=1.5, site_nsec=8, L_smhi=100,
                    dir_km=60, dir_power=1.0, dir_tree="tree_R200_H22.5")

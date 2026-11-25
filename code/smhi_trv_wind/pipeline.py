@@ -20,7 +20,7 @@ from . import evaluate
 from .config import Settings
 from .data import smhi as smhi_data, trafikverket as trv_data
 from .features.gis import sector_tables
-from .geo import bearing_deg, haversine_km
+from .geo import bearing_deg, haversine_km, sector
 from .model import combine as comb, exposure, physics, site_factors
 
 
@@ -37,6 +37,7 @@ class Result:
     trv: pd.DataFrame
     smhi: pd.DataFrame
     k: np.ndarray
+    f_height: float = 0.912
 
 
 def build_pairs(cfg: Settings, tabs: dict, site: site_factors.SiteFactors):
@@ -50,7 +51,9 @@ def build_pairs(cfg: Settings, tabs: dict, site: site_factors.SiteFactors):
     sws, swd = smhi_data.wind_matrices(cfg, H, ids=SM.index)
 
     pot, k = physics.potential_wind(sws, swd, tabs["z0_smhi"], cfg)            # step 2a: SMHI -> potential
-    corr = site.correct(pot, k)                                                # step 3
+    k_site = sector(physics.network_direction(sws, swd), cfg.site_nsec)
+    corr = site.correct(pot, k_site)                                           # step 3
+    dT = trv_data.temperature_difference(cfg, H, ids=TM.index) if cfg.use_stability else None
     lnU_net = np.log(corr.mean(1).clip(lower=0.5))
     road = trv_data.road_bearing(cfg)
     f_height = physics.height_factor(cfg.z_trv, cfg.z_smhi, cfg.z0_open)       # step 1
@@ -59,7 +62,10 @@ def build_pairs(cfg: Settings, tabs: dict, site: site_factors.SiteFactors):
     for j in TM.index:
         Fj = physics.to_site(tabs["z0_trv"].loc[j].reindex(k).values, cfg)     # step 2b: potential -> TrV site
         tree = tabs["tree_trv"].loc[j].reindex(k).values
+        tree_dir = tabs["tree_dir_trv"].loc[j].reindex(k).values
+        tree_far = tabs["tree_far_trv"].loc[j].reindex(k).values if cfg.tree_far_radius else np.nan
         lnxh = tabs["lnxh_trv"].loc[j].reindex(k).values
+        dTj = dT[j].values if dT is not None else np.nan
         for s in SM.index:
             d = float(haversine_km(TM.loc[j, "lat"], TM.loc[j, "lon"], SM.loc[s, "lat"], SM.loc[s, "lon"]))
             if d > cfg.max_pair_km:
@@ -70,7 +76,8 @@ def build_pairs(cfg: Settings, tabs: dict, site: site_factors.SiteFactors):
                 U1=f_height * sws[s].values,
                 U2=pot[s].values * Fj,
                 U3=corr[s].values * Fj,
-                tree=tree, lnxh=lnxh, lnU=lnU_net.values, road=road.get(j, np.nan),
+                tree=tree, tree_dir=tree_dir, tree_far=tree_far, dT=dTj, lnxh=lnxh, lnU=lnU_net.values,
+                road=road.get(j, np.nan),
                 bearing=bearing_deg(TM.loc[j, "lat"], TM.loc[j, "lon"], SM.loc[s, "lat"], SM.loc[s, "lon"]))))
     return pd.concat(rows, ignore_index=True), TM, SM, k
 
@@ -89,9 +96,10 @@ def run(cfg: Settings | None = None, verbose: bool = True) -> Result:
     D, model = exposure.fit_loso(D, cfg)                                        # steps 4-5
     P = evaluate.pair_metrics(D)
     C = comb.combine(D, cfg)                                                    # step 6
-    S = evaluate.station_metrics(C, physics.height_factor(cfg.z_trv, cfg.z_smhi, cfg.z0_open))
-    V = evaluate.smhi_value(P, SM.name)
-    return Result(D, P, C, S, V, site, site_raw, model, TM, SM, k)
+    fh = physics.height_factor(cfg.z_trv, cfg.z_smhi, cfg.z0_open)
+    S = evaluate.station_metrics(C, fh)
+    V = evaluate.smhi_value(P[P.dist <= 80], SM.name)
+    return Result(D, P, C, S, V, site, site_raw, model, TM, SM, k, fh)
 
 
 def save(res: Result, cfg: Settings) -> None:

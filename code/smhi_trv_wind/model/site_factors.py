@@ -2,7 +2,7 @@
 
     ln U_s(t) = a(t) + c_s(k(t)) + e,    sum_s c_s(k) = 0 for every k
 a(t): network-common log wind of hour t; c_s(k): persistent offset of station s when the network wind
-comes from sector k. Estimated by alternating least squares (two-way fixed effects) on the training
+comes from sector k (cfg.site_nsec sectors; 8 by default). Estimated by alternating least squares (two-way fixed effects) on the training
 history, hours with network median speed >= cfg.site_min_network_ws.
 Corrected wind: U*_s = U_s * exp(-c_s(k)).
 
@@ -39,9 +39,9 @@ class SiteFactors:
 
 
 def fit(ws: pd.DataFrame, wd: pd.DataFrame, cfg: Settings) -> SiteFactors:
-    dirs = sectors(cfg.n_sectors)
+    dirs = sectors(cfg.site_nsec)
     net = ws.median(1)
-    k = pd.Series(sector(network_direction(ws, wd), cfg.n_sectors), index=ws.index)
+    k = pd.Series(sector(network_direction(ws, wd), cfg.site_nsec), index=ws.index)
     use = (net >= cfg.site_min_network_ws) & (ws.notna().sum(1) >= min(cfg.site_min_stations, ws.shape[1]))
     L = np.log(ws[use].where(ws[use] >= cfg.site_min_ws))
     K = k[use]

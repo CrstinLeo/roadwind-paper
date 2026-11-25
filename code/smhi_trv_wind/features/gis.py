@@ -145,12 +145,19 @@ def sector_tables(cfg: Settings) -> dict[str, pd.DataFrame]:
     rd = lambda p: pd.read_parquet(p).assign(id=lambda d: d.id.astype(str))
     Z, T, E = rd(cfg.paths.feat_z0), rd(cfg.paths.feat_tree), rd(cfg.paths.feat_edge)
     piv = lambda D, src, col: D[D.src == src].pivot(index="id", columns="dir", values=col)
-    return dict(
+    out = dict(
         z0_smhi=piv(Z, "smhi", f"z0w_fp_{int(cfg.footprint_L_smhi)}"),
         z0_trv=piv(Z, "trv", f"z0w_fp_{int(cfg.footprint_L_trv)}"),
         z0_smhi_1km=piv(Z, "smhi", "z0w_fp_1000"),
         coast_smhi=Z[Z.src == "smhi"].groupby("id").dist_coast_km.first(),
-        tree_trv=piv(T, "trv", "tree_near"),
         tree_smhi=piv(T, "smhi", "tree_near"),
         lnxh_trv=np.log(piv(E, "trv", "xh_edge").clip(*cfg.xh_clip)),
     )
+    # tree shares at the configured radii come from the variants table (features/variants.py);
+    # tree_R200_H22.5 there is identical to tree_near of the base table
+    Vv = rd(cfg.paths.feat_variants)
+    out["tree_trv"] = piv(Vv, "trv", f"tree_R{cfg.tree_near_radius}_H22.5")
+    out["tree_dir_trv"] = piv(Vv, "trv", f"tree_R{cfg.tree_dir_radius}_H22.5")
+    if cfg.tree_far_radius:
+        out["tree_far_trv"] = piv(Vv, "trv", f"tree_R{cfg.tree_far_radius}_H22.5")
+    return out

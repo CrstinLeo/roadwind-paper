@@ -34,12 +34,12 @@ def _list(a, n=1, mask=None):
 def selection_rules(res, cfg: Settings) -> list[list[str]]:
     """station-median speed / direction error of several selection rules"""
     out = [["最近 SMHI × 0.91（未校正）", f"{res.S.mae_raw.median():.2f}", f"{res.S.dir_raw.median():.1f}°"]]
-    variants = [("最近 1 站，校正模型", dict(combine_km=0.0, combine_min_n=1)),
-                ("40 km 内，1/距离", dict(combine_km=40.0, combine_min_n=1)),
-                (f"{cfg.combine_km:.0f} km 内（至少 {cfg.combine_min_n} 站），1/距离", {}),
-                (f"{cfg.max_pair_km:.0f} km 内全部，1/距离", dict(combine_km=cfg.max_pair_km, combine_min_n=1))]
+    variants = [("最近 1 站，校正模型", dict(speed_km=0.0, speed_min_n=1)),
+                ("40 km 内，1/距离", dict(speed_km=40.0, speed_min_n=1, speed_power=1.0)),
+                ("60 km 内（至少 2 站），1/距离", dict(speed_km=60.0, speed_min_n=2, speed_power=1.0)),
+                (f"{cfg.speed_km:.0f} km 内全部，1/距离^{cfg.speed_power:g}（当前设置）", {})]
     for name, kw in variants:
-        S = res.S if not kw else evaluate.station_metrics(comb.combine(res.D, dataclasses.replace(cfg, **kw)))
+        S = res.S if not kw else evaluate.station_metrics(comb.combine(res.D, dataclasses.replace(cfg, **kw)), res.f_height)
         out.append([name, f"{S.mae_model.median():.2f}", f"{S.dir_model.median():.1f}°"])
     return out
 
@@ -55,7 +55,7 @@ def build(res, cfg: Settings, path: Path, route_lonlat: np.ndarray | None = None
         s = res.S.loc[j]
         sel = s.selected.split(",")
         dist = p.set_index("smhi").dist
-        w = comb.weights(dist, sel, cfg)
+        w = comb.weights(dist, sel, cfg, cfg.speed_power)
         rv = None
         if route_lonlat is not None:
             rv = float(haversine_km(TM.loc[j, "lat"], TM.loc[j, "lon"], route_lonlat[:, 1], route_lonlat[:, 0]).min())
