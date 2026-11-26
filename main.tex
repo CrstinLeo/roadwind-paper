@@ -1,18 +1,21 @@
-\documentclass[preprint,12pt,authoryear]{elsarticle}
+\documentclass[preprint,12pt]{elsarticle}
 % Target journal: Journal of Wind Engineering & Industrial Aerodynamics (Elsevier).
-% Backup: Meteorological Applications (RMetS). Companion paper with vehicle data: Vehicle System Dynamics.
+% Format follows the JWEIA guide for authors: numbered references in square brackets (elsarticle-num-names),
+% abstract <= 250 words, 1-7 keywords, 3-5 highlights of <= 85 characters (also supplied as highlights.tex),
+% graphical abstract (encouraged), declarations of competing interest and of generative AI use, CRediT, data statement.
 \usepackage{amsmath,amssymb}
 \usepackage{graphicx}
-\usepackage{booktabs}
+\usepackage[expansion=false]{microtype}
+\usepackage{booktabs,array}
 \usepackage{siunitx}
 \usepackage{xcolor}
 \usepackage[colorlinks=true,citecolor=blue!60!black,linkcolor=blue!60!black,urlcolor=blue!60!black]{hyperref}
 \usepackage{lineno}
 \linenumbers
 \newcommand{\todo}[1]{\textcolor{red!70!black}{[TODO: #1]}}
-\newcommand{\prelim}[1]{\textcolor{orange!80!black}{#1}}   % numbers from the 12-day pilot, to be replaced
+\newcommand{\prelim}[1]{\textcolor{orange!80!black}{#1}}   % numbers from a short pilot record, to be replaced
 \sisetup{detect-all}
-\input{sections/generated/numbers}   % numbers produced by code/scripts/10_paper_tables.py
+\input{sections/generated/numbers}   % numbers produced by code/scripts/15_paper_numbers.py
 
 \journal{Journal of Wind Engineering \& Industrial Aerodynamics}
 
@@ -21,17 +24,26 @@
 
 \title{From weather stations to the roadside: explaining and correcting near-surface wind with open geodata in Norway and Sweden, for vehicle air-drag estimation}
 
-\author[kth]{\todo{author names, order and affiliations}}
-\affiliation[kth]{organization={\todo{department}},
-            addressline={\todo{}}, city={Stockholm}, country={Sweden}}
+\author[aff1]{\todo{author names, order, ORCID and e-mail of the corresponding author}}
+\affiliation[aff1]{organization={\todo{affiliation, or ``Independent researcher''}},
+            city={\todo{city}}, country={\todo{country}}}
 
 \input{sections/00_abstract}
 
+\begin{graphicalabstract}
+\includegraphics[width=\textwidth]{figures/graphical_abstract.pdf}
+\end{graphicalabstract}
+
+\begin{highlights}
+\input{sections/highlights_items}
+\end{highlights}
+
 \begin{keyword}
-road weather stations \sep exposure correction \sep forest \sep cross-validation \sep surface roughness \sep forest edge \sep wind downscaling \sep heavy vehicle air drag
+Road weather station \sep Exposure correction \sep Forest shelter \sep Wind downscaling \sep Surface roughness \sep Crosswind \sep Heavy vehicle air drag
 \end{keyword}
 \end{frontmatter}
 
+\input{sections/nomenclature}
 \input{sections/01_introduction}
 \input{sections/02_data}
 \input{sections/03_methods}
@@ -39,18 +51,21 @@ road weather stations \sep exposure correction \sep forest \sep cross-validation
 \input{sections/05_discussion}
 \input{sections/06_conclusions}
 
-\section*{Data and code availability}
-SMHI observations (CC BY 4.0) and Trafikverket road-weather observations (Open API) are public; NMD land-cover and object-height layers are published by Naturvårdsverket; road geometry is from OpenStreetMap. The processing code (\texttt{smhi\_trv\_wind}) will be released at \todo{repository / Zenodo DOI}.
-
-\section*{Declaration of generative AI use}
-\todo{Required by the journal. Describe how an AI assistant was used (data processing code, analysis and drafting) and confirm that the authors reviewed and take full responsibility for the content.}
-
 \section*{CRediT authorship contribution statement}
-\todo{}
+\todo{One line per author with the CRediT roles, e.g. Conceptualization, Methodology, Software, Validation, Formal analysis, Data curation, Writing -- original draft, Writing -- review \& editing, Visualization, Supervision.}
+
+\section*{Declaration of competing interest}
+The authors declare that they have no known competing financial interests or personal relationships that could have appeared to influence the work reported in this paper. \todo{confirm or declare}
+
+\section*{Declaration of generative AI and AI-assisted technologies in the manuscript preparation process}
+During the preparation of this work the author(s) used Claude (Anthropic) in order to write data-processing and analysis code, run the analyses specified by the author(s), and draft and edit the text. After using this tool, the author(s) reviewed and edited the content as needed and take(s) full responsibility for the content of the published article. \todo{author to confirm the wording}
+
+\section*{Data availability}
+{\sloppy All observations and geodata used are openly available from their providers: MET Norway and Avinor reference stations and Statens vegvesen road weather stations through the Frost API \citep{Frost}; SMHI observations \citep{SMHIopen}; Trafikverket road weather observations \citep{TRVapi}; Kartverket terrain and surface models \citep{Kartverket}; ESA WorldCover \citep{WorldCover}; NMD land cover and object heights \citep{NMD}; OpenStreetMap road geometry; the NOR-XWIND vehicle measurements \citep{NORXWIND}; and the MET Nordic analysis \citep{MetNordic}. The Swedish roadside record was collected from the Trafikverket API between 2026-11-13 and 2026-11-25. The processing and analysis code (Python package \texttt{smhi\_trv\_wind} and the scripts that produce every number, table and figure of this paper) will be made available at \todo{public repository / Zenodo DOI}.\par}
 
 \section*{Acknowledgements}
-\todo{funding, Volvo / KTH, data providers}
+\todo{Funding (or: This research did not receive any specific grant from funding agencies in the public, commercial, or not-for-profit sectors.) and thanks.} We thank the providers of the open data sets listed above, and the NOR-XWIND team for publishing their vehicle measurements.
 
-\bibliographystyle{elsarticle-harv}
+\bibliographystyle{elsarticle-num-names}
 \bibliography{refs}
 \end{document}
