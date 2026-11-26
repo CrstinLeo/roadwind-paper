@@ -23,7 +23,7 @@
 \begin{document}
 \begin{frontmatter}
 
-\title{What the wind costs a truck: correcting weather-station wind to the roadside with open geodata for heavy-vehicle air-drag energy}
+\title{Correcting weather-station wind to the roadside with open geodata: consequences for estimating the air-drag energy of heavy trucks}
 
 \author[aff1]{\todo{author names, order, ORCID and e-mail of the corresponding author}}
 \affiliation[aff1]{organization={\todo{affiliation, or ``Independent researcher''}},
@@ -40,7 +40,7 @@
 \end{highlights}
 
 \begin{keyword}
-Heavy vehicle air drag \sep Crosswind \sep Energy consumption \sep Road weather station \sep Exposure correction \sep Forest shelter \sep Wind downscaling
+Heavy vehicle air drag \sep Crosswind \sep Energy consumption \sep Road weather station \sep Exposure correction \sep Forest shelter \sep Station-to-site wind transfer
 \end{keyword}
 \end{frontmatter}
 
@@ -63,7 +63,7 @@ The authors declare that they have no known competing financial interests or per
 During the preparation of this work the author(s) used Claude (Anthropic) in order to write data-processing and analysis code, run the analyses specified by the author(s), and draft and edit the text. After using this tool, the author(s) reviewed and edited the content as needed and take(s) full responsibility for the content of the published article. \todo{author to confirm the wording}
 
 \section*{Data availability}
-{\sloppy All observations and geodata used are openly available from their providers: MET Norway and Avinor reference stations and Statens vegvesen road weather stations through the Frost API \citep{Frost}; SMHI observations \citep{SMHIopen}; Trafikverket road weather observations \citep{TRVapi}; Kartverket terrain and surface models \citep{Kartverket}; ESA WorldCover \citep{WorldCover}; NMD land cover and object heights \citep{NMD}; OpenStreetMap road geometry; the NOR-XWIND vehicle measurements \citep{NORXWIND}; and the MET Nordic analysis \citep{MetNordic}. The Swedish roadside record was collected from the Trafikverket API between 2026-11-13 and 2026-11-25. The processing and analysis code (Python package \texttt{smhi\_trv\_wind} and the scripts that produce every number, table and figure of this paper) will be made available at \todo{public repository / Zenodo DOI}.\par}
+{\sloppy The observations and geodata used are openly available from their providers: MET Norway and Avinor reference stations and Statens vegvesen road weather stations through the Frost API \citep{Frost}; SMHI observations \citep{SMHIopen}; Kartverket terrain and surface models \citep{Kartverket}; ESA WorldCover \citep{WorldCover}; NMD land cover and object heights \citep{NMD}; OpenStreetMap road geometry; the NOR-XWIND vehicle measurements \citep{NORXWIND}; and the MET Nordic analysis \citep{MetNordic}. The Trafikverket road weather API \citep{TRVapi} keeps only seven days; the Swedish roadside record collected between 2026-11-13 and 2026-11-25 can therefore no longer be obtained from the provider and will be deposited together with the processed NOR-XWIND segments and the code. The processing and analysis code (Python package \texttt{smhi\_trv\_wind}, the vehicle pre-processing and the scripts that produce every number, table and figure of this paper) will be made available at \todo{public repository / Zenodo DOI}.\par}
 
 \section*{Acknowledgements}
 \todo{Funding (or: This research did not receive any specific grant from funding agencies in the public, commercial, or not-for-profit sectors.) and thanks.} We thank the providers of the open data sets listed above, and the NOR-XWIND team for publishing their vehicle measurements.
