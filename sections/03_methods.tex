@@ -19,8 +19,8 @@ with $z_s=\SI{10}{m}$; $z_j=\SI{6}{m}$ in Sweden (factor 0.912) and $\SI{10}{m}$
 \subsection{Roughness conversion}
 Following \citet{Wieringa1986}, the wind at a blending height $z_b=\SI{60}{m}$ is assumed to be independent of the local surface. The measured wind is converted to the potential wind over open terrain and then to the roadside,
 \begin{align}
-P(z_0) &= \frac{\ln(z_b/z_0)}{\ln(z_s/z_0)}\,\frac{\ln(z_s/z_{0r})}{\ln(z_b/z_{0r})}, &
-F(z_0) &= \frac{\ln(z_b/z_{0r})}{\ln(z_s/z_{0r})}\,\frac{\ln(z_j/z_0)}{\ln(z_b/z_0)}, &
+P(z_0) &= \frac{\ln(z_b/z_0)}{\ln(z_s/z_0)}\,\frac{\ln(z_s/z_{0r})}{\ln(z_b/z_{0r})}, \qquad
+F(z_0) = \frac{\ln(z_b/z_{0r})}{\ln(z_s/z_{0r})}\,\frac{\ln(z_j/z_0)}{\ln(z_b/z_0)},\\
 U_2 &= U_0\,P\!\left(z_{0,s}(k)\right)\,F\!\left(z_{0,j}(k)\right).
 \end{align}
 The effective roughness length in sector $k$ is a footprint-weighted geometric mean over the \SI{10}{m} pixels within $\pm\ang{22.5}$ of the upwind direction, with weights $e^{-r/L}$, $L=\SI{100}{m}$, and $z_{0}=0.1\,h$ where the object height $h>\SI{5}{m}$, \SI{0.0002}{m} over water and $z_{0r}$ elsewhere.
@@ -53,17 +53,18 @@ The roadside wind speed is the weighted geometric mean of the estimates $U_{4,i}
 
 \subsection{Validation design}
 \label{sec:validation}
-Parameters are never evaluated on the data used to fit them. The test period is divided into consecutive time blocks---eight blocks of about three months in Norway, so that every season is left out once, and four blocks of about three days in Sweden. The exposure and direction models are fitted on all blocks but one and on all roadside stations except the one predicted (leave-one-station-out), and evaluated on the remaining block; every prediction is therefore out of time and out of station \citep{Roberts2017}. Site factors are estimated only from the training period before the test period. The score is the mean absolute error (MAE) of the hourly wind speed per roadside station; two settings are compared with paired differences per station and their standard error (SE). Length scales and thresholds were varied one at a time; a value is retained when it is within one standard error of the best value of its group \citep{Hastie2009}, preferring the physically better founded or simpler one. Terrain indices from the Norwegian terrain model---the upwind shelter index $S_x$ \citep{Winstral2002} within \SI{300}{m} and \SI{1}{km}, the topographic position within \SI{500}{m} and \SI{2}{km}, and the relief---were tested as additional predictors.
+Parameters are never evaluated on the data used to fit them. The test period is divided into consecutive time blocks---eight blocks of about three months in Norway, so that every season is left out once, and four blocks of about three days in Sweden. The exposure and direction models are fitted on all blocks but one and on all roadside stations except the one predicted (leave-one-station-out, LOSO), and evaluated on the remaining block; every prediction is therefore out of time and out of station \citep{Roberts2017}. Site factors are estimated only from the training period before the test period. The score is the mean absolute error (MAE) of the hourly wind speed per roadside station; two settings are compared with paired differences per station and their standard error (SE). The bias is reported as the ratio of the mean estimated to the mean observed wind speed minus one, over all hours with both values, so that it is not affected by the selection of hours or the log transformation. Length scales and thresholds were varied one at a time; a value is retained when it is within one standard error of the best value of its group \citep{Hastie2009}, preferring the physically better founded or simpler one. Terrain indices from the Norwegian terrain model---the upwind shelter index $S_x$ \citep{Winstral2002} within \SI{300}{m} and \SI{1}{km}, the topographic position index within \SI{500}{m} and \SI{2}{km}, and the relief within \SI{2}{km}---were tested as additional predictors of the final model.
 
 \subsection{Transfer between the countries}
 To test whether the fitted model can be used in a region without roadside stations, the coefficients of Eq.~\eqref{eq:exposure} and of the direction model fitted in one country are applied unchanged in the other; the physical steps and the site factors use the local data.
 
 \subsection{Application at vehicle height}
-For the NOR-XWIND segments, the model fitted on the Norwegian roadside stations is applied with the segment's own features, the roughness conversion to $z_j=\SI{3.4}{m}$ and the reference observations of the measurement hour. It is compared with the nearest reference station and the nearest road weather station, both converted to \SI{3.4}{m} with the logarithmic profile over open terrain, and with the MET Nordic analysis.
+For the NOR-XWIND segments, the model fitted on the Norwegian roadside stations is applied with the segment's own features, the roughness conversion to $z_j=\SI{3.4}{m}$ and the reference observations of the measurement hour. It is compared with the nearest reference station and the nearest road weather station, both converted to \SI{3.4}{m} with the logarithmic profile over open terrain, and with the MET Nordic analysis at \SI{10}{m}, converted in the same way.
 
 \subsection{Air drag}
 Wind errors are propagated to the air drag of a tractor--semitrailer with Model~1 of \citet{Askerdal2024crosswind},
-\begin{equation}
-F = \tfrac12 \rho\, C_dA(\theta)\, v_a^2,\qquad C_dA(\theta) = c_1 \cos^2\theta\,(A_f\cos\theta + A_s\sin\theta),\qquad \theta = \arctan\frac{|v_{wy}|}{v_v+v_{wx}},
-\end{equation}
-with the frontal and side areas $A_f=\SI{10.3}{m^2}$ and $A_s=\SI{57.6}{m^2}$ of their vehicle, the vehicle speed $v_v=\SI{80}{km.h^{-1}}$ and the head- and crosswind components $v_{wx}$, $v_{wy}$. The relative drag error $F(\hat{v}_w)/F(v_w)-1$ does not depend on $c_1$ or $\rho$. At roadside stations it is evaluated for both driving directions along the road axis; for the vehicle segments along the measured heading.
+\begin{align}
+F &= \tfrac12 \rho\, C_dA(\theta)\, v_a^2, & C_dA(\theta) &= c_1 \cos^2\theta\,(A_f\cos\theta + A_s\sin\theta),\\
+v_a^2 &= (v_v+v_{wx})^2+v_{wy}^2, & \theta &= \arctan\frac{|v_{wy}|}{v_v+v_{wx}},
+\end{align}
+with the frontal and side areas $A_f=\SI{10.3}{m^2}$ and $A_s=\SI{57.6}{m^2}$ of their vehicle, the vehicle speed $v_v=\SI{80}{km.h^{-1}}$, the air speed $v_a$ and the attack angle $\theta$, and the head- and crosswind components $v_{wx}$ (positive against the direction of travel) and $v_{wy}$. The relative drag error $F(\hat{v}_w)/F(v_w)-1$ does not depend on $c_1$ or $\rho$. At roadside stations it is evaluated with the observed roadside wind as reference, for both driving directions along the road axis, and summarised by the median absolute error over hours and directions; for the vehicle segments it is evaluated along the measured heading.
