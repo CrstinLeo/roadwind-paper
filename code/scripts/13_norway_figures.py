@@ -66,15 +66,27 @@ def fig_map_norway():
     fig, ax = plt.subplots(figsize=(W2, W2 * (y1 - y0) / (x1 - x0) * 0.8))
     ax.imshow(base, extent=(x0, x1, y0, y1), cmap=ListedColormap(["#ffffff", "#f3f2ee", "#d3e6cf", "#cfe1f3"]), vmin=0, vmax=3, interpolation="nearest")
     tr_ = S[S.grp == "SVV"].set_index("id").reindex(R["meta"]["trv"])
-    sc = ax.scatter(tr_.x, tr_.y, c=cv_, cmap="viridis_r", vmin=0.5, vmax=2.5, s=16, edgecolor="white", linewidth=0.4, zorder=4,
+    sc = ax.scatter(tr_.x, tr_.y, c=cv_, cmap="viridis_r", vmin=0.5, vmax=2.5, s=30, edgecolor="white", linewidth=0.5, zorder=4,
                     label="Statens vegvesen road weather station")
     rf = S[S.grp.isin(["MET", "AVINOR"])]
-    ax.scatter(rf.x, rf.y, marker="s", s=24, color=ORANGE, edgecolor=INK, linewidth=0.6, zorder=5, label="MET Norway / Avinor station")
+    ax.scatter(rf.x, rf.y, marker="s", s=34, color=ORANGE, edgecolor=INK, linewidth=0.6, zorder=5, label="MET Norway / Avinor station")
+    for lat_ in (62.0, 62.5, 63.0, 63.5, 64.0, 64.5):                         # graticule with labels
+        xs_, ys_ = T.transform(np.linspace(4, 15, 200), np.full(200, lat_))
+        ax.plot(xs_, ys_, color=MUTED, lw=0.3, alpha=0.6, zorder=1)
+        k_ = np.argmin(np.abs(xs_ - x0)) if (xs_.min() < x0 < xs_.max()) else None
+        if k_ is not None and y0 < ys_[k_] < y1:
+            ax.text(x0 + 2e3, ys_[k_], f"{lat_:.1f}°N", fontsize=6, color=MUTED, va="bottom")
+    for lon_ in (7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0):
+        xs_, ys_ = T.transform(np.full(200, lon_), np.linspace(61, 66, 200))
+        ax.plot(xs_, ys_, color=MUTED, lw=0.3, alpha=0.6, zorder=1)
+        k_ = np.argmin(np.abs(ys_ - y0))
+        if x0 < xs_[k_] < x1:
+            ax.text(xs_[k_], y0 + 2e3, f"{lon_:.0f}°E", fontsize=6, color=MUTED, ha="center")
     for site, (la_, lo_) in {"Dovre (E6)": (62.12, 9.38), "Frøya": (63.70, 8.55)}.items():
         x, y = T.transform(lo_, la_)
         ax.plot(x, y, "*", ms=11, color=PURPLE, mec="white", zorder=6)
         ax.annotate(site, (x, y), xytext=(5, -10), textcoords="offset points", fontsize=7, color=PURPLE)
-    cb = fig.colorbar(sc, ax=ax, shrink=0.6, pad=0.01); cb.set_label("cross-validated MAE [m s$^{-1}$]")
+    cb = fig.colorbar(sc, ax=ax, shrink=0.6, pad=0.01, extend="max"); cb.set_label("cross-validated MAE [m s$^{-1}$]")
     ax.set_xlim(x0, x1); ax.set_ylim(y0, y1); ax.set_aspect("equal"); ax.grid(False); ax.set_xticks([]); ax.set_yticks([])
     ax.plot([x0 + 10e3, x0 + 60e3], [y0 + 10e3] * 2, color=INK, lw=2); ax.text(x0 + 35e3, y0 + 13e3, "50 km", ha="center", fontsize=7)
     ax.legend(loc="upper left", framealpha=0.9, edgecolor="none")
@@ -109,7 +121,7 @@ def fig_vehicle():
 
 def fig_ladder_both():
     """correction ladder, pairs <= 80 km, Norway (engine ladder) and Sweden (pipeline pair metrics)"""
-    SEres = pickle.load(open(Path(os.environ.get("SWW_SE_OUT", "/tmp/sww8")) / "result.pkl", "rb"))
+    SEres = pickle.load(open(Path(os.environ.get("SWW_SE_OUT", "output/se")) / "result.pkl", "rb"))
     XL = OUT / "norway_extra.pkl"                     # 16_norway_ladder_terrain.py (ratio-of-means bias)
     L = pickle.load(open(XL, "rb"))["ladder"] if XL.exists() else R["ladder"]; L = L[L.dist <= 80]
     P = SEres.P[SEres.P.dist <= 80]
@@ -155,7 +167,4 @@ def fig_sens_norway():
 
 if __name__ == "__main__":
     fig_ladder_both()
-    fig_sens_norway()
-    fig_map_norway()
-    if (OUT / "vehicle_validation_rows.parquet").exists():
-        fig_vehicle()
+    fig_map_norway()                    # fig04 and fig06 are drawn by 28_figures_r1.py

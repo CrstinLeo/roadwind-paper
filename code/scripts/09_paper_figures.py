@@ -206,7 +206,7 @@ def fig_two_scale():
 def fig_along():
     offs = [-1000, -750, -500, -250, -100, 0, 100, 250, 500, 750, 1000]
     curves = {}
-    for country, path in (("Sweden", cfg.paths.feat_variants), ("Norway", Path(os.environ.get("SWW_NO_DATA", "/home/claude/no")) / "features_variants.parquet")):
+    for country, path in (("Sweden", cfg.paths.feat_variants), ("Norway", Path(os.environ.get("SWW_NO_DATA", "data/no")) / "features_variants.parquet")):
         if not Path(path).exists():
             continue
         V = pd.read_parquet(path); V = V[V.src == "trv"]
@@ -217,18 +217,18 @@ def fig_along():
                 ok = np.isfinite(a) & np.isfinite(b)
                 r.append(np.corrcoef(a[ok], b[ok])[0, 1])
             curves[(country, col)] = r
-    S = pickle.load(open(OUT / "sensitivity_cv.pkl", "rb"))["res"]
-    base = S[("road_window", "±0 m")]["r"]["mae"]
-    labs = ["±0 m", "±100 m", "±250 m", "±500 m", "±750 m", "±1000 m"]
-    seg = [0, 200, 500, 1000, 1500, 2000]
-    v = [paired(S[("road_window", l)]["r"]["mae"], base) for l in labs]
+    S = pickle.load(open(OUT / "review_SE.pkl", "rb"))["scans"]          # 26_sweden_review.py, around the final model
+    base = S[("road_window", "+-0 m")]["mae"]
+    labs = ["+-0 m", "+-100 m", "+-250 m", "+-500 m"]
+    seg = [0, 200, 500, 1000]
+    v = [paired(S[("road_window", l)]["mae"], base) for l in labs]
     fig, ax = plt.subplots(1, 2, figsize=(W2, 2.3))
     for (country, col), r in curves.items():
         ax[0].plot(offs, r, "-o" if col == "tree" else "--s", color=BLUE if country == "Sweden" else ORANGE, ms=3,
                    label=f"{country}: " + ("upwind tree share (200 m)" if col == "tree" else "upwind ln $z_0$ (L = 100 m)"))
     ax[0].set_xlabel("distance along the road from the station [m]"); ax[0].set_ylabel("correlation with station value")
     ax[0].set_ylim(0, 1.05); ax[0].set_title("(a)", loc="left")
-    ax[0].legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.22), ncol=2, fontsize=6.5)
+    ax[0].legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.3), ncol=2, fontsize=6.5)
     ax[1].errorbar(seg, [m for m, _ in v], yerr=[s for _, s in v], fmt="-o", color=BLUE, ms=3.5, capsize=1.5)
     ax[1].axhline(0, color=MUTED, lw=0.7)
     ax[1].set_xlabel("segment length 2S over which features are averaged [m]"); ax[1].set_ylabel("ΔMAE vs point features [m s$^{-1}$]")
@@ -238,5 +238,7 @@ def fig_along():
 
 
 if __name__ == "__main__":
-    for f in (fig_map, fig_site, fig_sensitivity, fig_two_scale, fig_along):
-        f()
+    import sys
+    todo = sys.argv[1:] or ["map", "site", "along"]          # fig_two_scale / fig_sensitivity: superseded by 28_figures_r1.py
+    for k in todo:
+        dict(map=fig_map, site=fig_site, sens=fig_sensitivity, two=fig_two_scale, along=fig_along)[k]()

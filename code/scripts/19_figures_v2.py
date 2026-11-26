@@ -25,8 +25,8 @@ from matplotlib.patches import Circle, FancyArrowPatch, Polygon, Rectangle, Wedg
 from smhi_trv_wind import drag
 from smhi_trv_wind.geo import wrap180
 
-NO = Path(os.environ.get("SWW_NO_OUT", "/tmp/nout2")); SE = Path(os.environ.get("SWW_SE_OUT", "/tmp/sww8"))
-NOD = Path(os.environ.get("SWW_NO_DATA", "/home/claude/no"))
+NO = Path(os.environ.get("SWW_NO_OUT", "output/no")); SE = Path(os.environ.get("SWW_SE_OUT", "output/se"))
+NOD = Path(os.environ.get("SWW_NO_DATA", "data/no"))
 FIG = Path(os.environ.get("SWW_FIG", Path(__file__).resolve().parents[2] / "figures"))
 BLUE, ORANGE, GREEN, PURPLE, INK, MUTED, GRID = "#2a78d6", "#eb6834", "#1baf7a", "#6250d6", "#1d1d1b", "#6b6a65", "#e4e3de"
 LIGHT = "#b9b8b2"
@@ -138,7 +138,7 @@ def fig_mechanisms():
             a.plot(al, M["d"][0] + M["d"][1] * np.sin(np.radians(2 * al)) * t, color=col, lw=0.8, ls="--")
         a.axhline(0, color=INK, lw=0.5); a.set_xticks([-90, -45, 0, 45, 90])
         a.set_xlabel("wind-to-road angle $\\alpha$ [°]"); a.set_ylabel("deflection $\\varphi_\\mathrm{road}-\\varphi_\\mathrm{ref}$ [°]" if j == 0 else "")
-        a.set_title(lab, loc="right", color=C[country], fontsize=7.5)
+        a.set_title("Sweden (development region)" if country == "Sweden" else "Norway", loc="left", color=C[country], fontsize=7.5)
         if j == 0:
             a.legend(frameon=False, loc="lower left", fontsize=6.5)
     for a, s in zip(ax.flat, "abcdef"):
@@ -320,5 +320,5 @@ def fig_energy():
 
 
 if __name__ == "__main__":
-    for f in (fig_concept, fig_mechanisms, fig_error_structure, fig_timeseries, fig_site_factors, fig_vehicle, fig_energy):
+    for f in (fig_concept, fig_mechanisms, fig_timeseries, fig_site_factors):     # fig06, fig10, fig13: 28_figures_r1.py
         f()

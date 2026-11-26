@@ -7,6 +7,8 @@
 # data (downloaded or derived; see code/README.md, section 5)
 /data/
 /output/
+code/data/
+code/output/
 *.parquet
 *.nc
 *.tif

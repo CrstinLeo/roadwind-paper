@@ -29,7 +29,7 @@ ax.text(8.5, 33.3, "reference station\n10 m, open terrain", ha="center", va="bot
 
 # ---- middle: correction chain
 steps = [("height", "log profile"), ("roughness", "$z_0$ from laser\nscanning"), ("site factor", "one per\nstation"),
-         ("roadside\nexposure", "trees ≤ 100 m +\nforest in 1 km"), ("combine", "all stations,\n$1/d^{1.5}$")]
+         ("roadside\nexposure", "forest fraction\nwithin 1 km"), ("combine", "all stations,\n$1/d^{1.5}$")]
 x0, w, gap, y0, h = 19, 10.6, 1.6, 16, 12.5
 for i, (t, s) in enumerate(steps):
     x = x0 + i * (w + gap)
@@ -58,8 +58,8 @@ ax.annotate("", xy=(xr + 9.5, 15.6), xytext=(xr + 9.5, 22.5), arrowprops=dict(ar
 ax.text(xr + 9.0, 23.2, "crosswind and\nair-drag energy\non the road", ha="center", va="bottom", fontsize=13, color=INK)
 
 # ---- bottom: results
-res = (f"wind penalty on the air-drag energy of a tractor–semitrailer (80 km/h):  mean +{N['enAddNo']} %, single roads {N['enRoadMinNo']}–{N['enRoadMaxNo']} %\n"
-       f"nearest station: penalty ×2, hourly skill {N['enSsNoRaw'].replace('$-$', '−')}   ·   corrected: road penalties r = {N['enRoadCorrNoCor']}, "
+res = (f"at road-weather-station sites, wind adds {N['enAddNo']} % ({N['enAddNoLo']}–{N['enAddNoHi']} %) to the air-drag energy of a tractor–semitrailer at 80 km/h\n"
+       f"nearest station: penalty ×2, hourly skill {N['enSsNoRaw'].replace('$-$', '−')}   ·   corrected: skill {N['enSsNoCor']}, "
        f"wind error {N['noCvRaw']} → {N['noCvMed']} m/s")
 ax.text(50, 3.6, res, ha="center", va="center", fontsize=13.5, color=INK, linespacing=1.6)
 
