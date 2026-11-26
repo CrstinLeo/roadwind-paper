@@ -168,7 +168,11 @@ class Engine:
             P = np.ones_like(P)
         ksite = sector(self.k16 if sp.site_nsec == 16 else network_direction(self.sws, self.swd), sp.site_nsec)
         C = np.column_stack([c.loc[s].reindex(ksite).values for s in self.sws.columns])
-        corr = self.sws.values * P * np.exp(-np.nan_to_num(C))
+        has_data = np.isfinite(self.sws.values).any(0)
+        if np.any(np.isnan(C).all(0) & has_data):           # a station with test data but no site factor is an error
+            raise ValueError("reference station with data but without a site factor: " +
+                             ", ".join(map(str, np.array(self.sws.columns)[np.isnan(C).all(0) & has_data])))
+        corr = self.sws.values * P * np.exp(-np.nan_to_num(C))   # NaN only for stations without any data
         Fj = physics.to_site(np.exp(self._trv_sector(self._trv_lnz0(sp))), cfg)            # [hour x trv]
         if not sp.roughness:
             Fj = np.full_like(Fj, physics.height_factor(6.0))
@@ -196,11 +200,11 @@ class Engine:
                    hmid=lambda: self._trv_sector(self.terrain["h_mid"])[:, pj])            # built only when requested
         for e in sp.extra:
             if e.startswith("v:"):
-                cols.append(np.nan_to_num(self._trv_sector(self.Vt[e[2:]])[:, pj]))
+                cols.append(self._trv_sector(self.Vt[e[2:]])[:, pj])
             elif e.startswith("t:"):                                   # terrain feature, e.g. t:sx_300, t:tpi_500
-                cols.append(np.nan_to_num(self._trv_sector(self.Tt[e[2:]])[:, pj]))
+                cols.append(self._trv_sector(self.Tt[e[2:]])[:, pj])
             elif e != "lnU_pair":
-                cols.append(np.nan_to_num(ext[e]()))
+                cols.append(ext[e]())                                  # missing values are excluded from the fit below
         finite = np.ones(U3.shape, bool)
         for x in cols:
             finite &= np.isfinite(x)                                   # rows with any missing predictor are not fitted
@@ -233,7 +237,8 @@ class Engine:
             r_ = np.exp(yf - Xf @ b_all)
             smear = float(np.mean(r_))
             Sj, Nj = np.bincount(jf, r_, n_t), np.bincount(jf, minlength=n_t)
-            smear_j = (Sj.sum() - Sj) / (Nj.sum() - Nj)          # Duan factor without the held-out station
+            smear_j = (Sj.sum() - Sj) / (Nj.sum() - Nj)          # Duan factor without the held-out station's residuals
+            # (the residuals use b_all, which includes station j: a second-order approximation of the LOSO factor)
             del r_
         else:
             b_all, d_all = np.asarray(fixed["b"], dtype=float), np.asarray(fixed["d"], dtype=float)

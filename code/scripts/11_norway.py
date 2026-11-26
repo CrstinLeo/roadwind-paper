@@ -25,7 +25,7 @@ log("hours", len(E.H), "roadside", len(E.TM), "reference", len(E.SM), "pairs", l
 month = E.H.month
 G = {"leaf-on (May-Sep)": np.isin(month, [5, 6, 7, 8, 9]), "leaf-off (Nov-Mar)": np.isin(month, [11, 12, 1, 2, 3])}
 NB = 8                                                  # ~3-month blocks
-R = dict(meta=dict(hours=len(E.H), n_trv=len(E.TM), n_ref=len(E.SM), n_pairs=len(E.pj), start=str(E.H[0]), end=str(E.H[-1]),
+R = dict(meta=dict(hours=len(E.H), n_trv=len(E.TM), n_ref=int(np.isfinite(E.sws.values).any(0).sum()), n_pairs=len(E.pj), start=str(E.H[0]), end=str(E.H[-1]),
                    trv=list(E.TM.index), ref=list(E.SM.index)))
 FINAL = RECOMMENDED
 REF6 = Spec()                                           # round-6 reference configuration

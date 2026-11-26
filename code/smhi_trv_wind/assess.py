@@ -130,7 +130,7 @@ def energy(speed, wfrom, heading, model="vecto", v=V80, rho=RHO):
     return drag.energy_kwh100(v, h, c, rho=rho, model=model)
 
 
-def station_sums(ws, wd, road, ests, ok, fh, model="vecto", v=V80, keep=None):
+def station_sums(ws, wd, road, ests, ok, fh, model="vecto", v=V80, keep=None, cond=None):
     """per-station sums over one-way passes in both directions along the road axis. ests = {name: (speed, dir)};
     'no wind' is the still-air energy. Winds are referred to vehicle height with the factor fh."""
     E0 = float(drag.energy_kwh100(v, 0.0, 0.0, rho=RHO, model=model))
@@ -139,15 +139,18 @@ def station_sums(ws, wd, road, ests, ok, fh, model="vecto", v=V80, keep=None):
     head = [np.where(ok, drag.energy_kwh100(v, s * h, 0 * h, rho=RHO, model=model), np.nan) for s in (1, -1)]
     cross = np.where(ok, drag.energy_kwh100(v, 0 * c, c, rho=RHO, model=model), np.nan)
     strong = [np.abs(t - E0) >= 0.1 * E0 for t in T]
+    cond = np.zeros(ws.shape, bool) if cond is None else (cond & ok)          # condition known in advance (e.g. windy hours)
     S = dict(E0=E0, n=2 * ok.sum(0), T=sum(np.nansum(t, 0) for t in T), head=sum(np.nansum(x, 0) for x in head),
              cross=2 * np.nansum(cross, 0), strong=sum(s.sum(0) for s in strong),
              large=sum((np.abs(t - E0) >= 0.2 * E0).sum(0) for t in T),
-             T_rt_sq=np.nansum(((T[0] + T[1]) / 2 - E0) ** 2, 0), est={})
+             T_rt_sq=np.nansum(((T[0] + T[1]) / 2 - E0) ** 2, 0), n_cond=2 * cond.sum(0), est={})
     for name, (u, d) in ests.items():
         Es = [np.where(ok, E0, np.nan)] * 2 if name == "no wind" else \
             [np.where(ok, energy(u * fh, d, road[None, :] + k, model, v), np.nan) for k in (0.0, 180.0)]
-        s = dict(E=0, abs=0, sq=0, abs_strong=0)
+        s = dict(E=0, abs=0, sq=0, abs_strong=0, abs_cond=0, sq_cond=0)
         for t, e, st in zip(T, Es, strong):
+            s["abs_cond"] = s["abs_cond"] + np.nansum(np.where(cond, np.abs(e - t), np.nan), 0)
+            s["sq_cond"] = s["sq_cond"] + np.nansum(np.where(cond, (e - t) ** 2, np.nan), 0)
             s["E"] = s["E"] + np.nansum(e, 0); s["abs"] = s["abs"] + np.nansum(np.abs(e - t), 0)
             s["sq"] = s["sq"] + np.nansum((e - t) ** 2, 0)
             s["abs_strong"] = s["abs_strong"] + np.nansum(np.where(st, np.abs(e - t), np.nan), 0)
@@ -155,7 +158,7 @@ def station_sums(ws, wd, road, ests, ok, fh, model="vecto", v=V80, keep=None):
         s["abs_rt"] = np.nansum(np.abs(rt_e - rt_t), 0); s["sq_rt"] = np.nansum((rt_e - rt_t) ** 2, 0)
         S["est"][name] = s
     if keep is not None:
-        for key in ("n", "T", "head", "cross", "strong", "large", "T_rt_sq"):
+        for key in ("n", "T", "head", "cross", "strong", "large", "T_rt_sq", "n_cond"):
             S[key] = S[key][keep]
         S["est"] = {k: {kk: vv[keep] for kk, vv in s.items()} for k, s in S["est"].items()}
     return S
@@ -167,6 +170,8 @@ def energy_metrics(S, idx=None):
     n, T, E0 = S["n"][idx], S["T"][idx], S["E0"]
     pen_t = 100 * (T / n / E0 - 1)
     sq0 = S["est"]["no wind"]["sq"][idx].sum(); sq0rt = S["est"]["no wind"]["sq_rt"][idx].sum()
+    sq0c = S["est"]["no wind"]["sq_cond"][idx].sum(); nc = S["n_cond"][idx].sum()
+    sq0_st, abs0_st = S["est"]["no wind"]["sq"][idx], S["est"]["no wind"]["abs"][idx]
     o = dict(pen_mean=100 * (T.sum() / n.sum() / E0 - 1), pen_head=100 * (S["head"][idx].sum() / n.sum() / E0 - 1),
              pen_cross=100 * (S["cross"][idx].sum() / n.sum() / E0 - 1), pen_station=pen_t,
              strong_frac=float(S["strong"][idx].sum() / n.sum()), large_frac=float(S["large"][idx].sum() / n.sum()))
@@ -179,7 +184,12 @@ def energy_metrics(S, idx=None):
                     pooled_bias=float(100 * (s["E"][idx].sum() / T.sum() - 1)),
                     corr=float(np.corrcoef(pen_t, pen_e)[0, 1]) if k != "no wind" else np.nan,
                     pen_mae=float(np.mean(np.abs(pen_e - pen_t))), pen_station=pen_e,
-                    strong_mae=float(s["abs_strong"][idx].sum() / S["strong"][idx].sum()))
+                    strong_mae=float(s["abs_strong"][idx].sum() / S["strong"][idx].sum()),
+                    cond_mae=float(s["abs_cond"][idx].sum() / nc) if nc else np.nan,
+                    cond_skill=float(1 - s["sq_cond"][idx].sum() / sq0c) if nc else np.nan,
+                    st_skill_med=float(np.median(1 - s["sq"][idx] / sq0_st)),
+                    n_skill_pos=int(np.sum(s["sq"][idx] < sq0_st)), n_mae_gain=int(np.sum(s["abs"][idx] < abs0_st)),
+                    st_mae_gain_med=float(np.median(100 * (1 - s["abs"][idx] / abs0_st))))
     return o
 
 
@@ -232,7 +242,50 @@ def direction_mae(ests, ws, wd, U0n, ok_st):
     return out
 
 
-def build_estimators(P, O, blk, D=None, metnordic=None):
+def sector_features(ids, data_root, wd):
+    """exposure predictors of Eq. (exposure) at every roadside station, in the 22.5-deg sector of the wind direction wd
+    [hour x station]: T100 (upwind), ln(x/h) (upwind), F1000 (all directions)"""
+    from pathlib import Path
+    V = pd.read_parquet(Path(data_root) / "features_variants.parquet"); V["id"] = V.id.astype(str); V = V[V.src == "trv"]
+    Ed = pd.read_parquet(Path(data_root) / "features2_16dir.parquet"); Ed["id"] = Ed.id.astype(str); Ed = Ed[Ed.src == "trv"]
+    piv = lambda T, c: T.pivot(index="id", columns="dir", values=c).reindex(index=ids).values      # [station x 16]
+    k = (np.round(np.where(np.isfinite(wd), wd, 0) / 22.5).astype(int)) % 16
+    j = np.broadcast_to(np.arange(len(ids)), wd.shape)
+    T100 = piv(V, "tree_R100_H22.5")[j, k]; F1000 = piv(V, "tree_R1000_H180")[j, k]
+    lnxh = np.log(np.clip(piv(Ed, "xh_edge"), 0.2, 200.0))[j, k]
+    bad = ~np.isfinite(wd)
+    return {n: np.where(bad, np.nan, a) for n, a in (("T100", T100), ("lnxh", lnxh), ("F1000", F1000))}
+
+
+def crossfit_exposure(base_u, base_d, ws, feats, blk, fit_min=2.0):
+    """hybrid estimator: a gridded analysis (base_u, base_d) mapped to the roadside with the exposure model of the paper,
+    ln(U_j / U_base) = c0 + c1 T100 + c2 ln(x/h) + c3 ln U_regional + c4 F1000, fitted by OLS and back-transformed with
+    the smearing factor, both learned on the other time blocks AND the other stations (cross-fitted)"""
+    nb, ns = blk.max() + 1, base_u.shape[1]
+    lnreg = np.log(np.clip(np.nanmean(base_u, 1), 0.5, None))[:, None] * np.ones_like(base_u)
+    X = np.stack([np.ones_like(base_u), feats["T100"], feats["lnxh"], lnreg, feats["F1000"]], -1)
+    y = np.log(np.clip(ws, 0.1, None) / np.clip(base_u, 0.1, None))
+    fit = (base_u >= fit_min) & (ws > 0.2) & np.all(np.isfinite(X), -1) & np.isfinite(y)
+    p = X.shape[-1]
+    XtX = np.zeros((nb, ns, p, p)); Xty = np.zeros((nb, ns, p))
+    for b in range(nb):
+        for j in range(ns):
+            m = fit[:, j] & (blk == b)
+            Xm = X[m, j]; XtX[b, j] = Xm.T @ Xm; Xty[b, j] = Xm.T @ y[m, j]
+    out = np.full(base_u.shape, np.nan); coefs = []
+    for b in range(nb):
+        for j in range(ns):
+            A_ = XtX.sum((0, 1)) - XtX[b].sum(0) - XtX[:, j].sum(0) + XtX[b, j]
+            c_ = Xty.sum((0, 1)) - Xty[b].sum(0) - Xty[:, j].sum(0) + Xty[b, j]
+            beta = np.linalg.solve(A_, c_); coefs.append(beta)
+            tr = fit & (blk[:, None] != b); tr[:, j] = False
+            smear = float(np.mean(np.exp(y[tr] - X[tr] @ beta)))
+            m = (blk == b) & np.isfinite(base_u[:, j]) & np.all(np.isfinite(X[:, j]), -1)
+            out[m, j] = base_u[m, j] * np.exp(X[m, j] @ beta) * smear
+    return out, base_d, np.array(coefs)
+
+
+def build_estimators(P, O, blk, D=None, metnordic=None, feats=None):
     """all estimators of the roadside wind compared in the paper, every one out of time block and out of station.
     P: cross-validated predictions (U, wdm, U0n, wd0n); O: observations (ws, wd); D: roadside distance matrix [km];
     metnordic: (speed, dir) arrays of the same shape or None. Returns {name: (speed, dir)} and the QC'd direction."""
@@ -250,11 +303,15 @@ def build_estimators(P, O, blk, D=None, metnordic=None):
         info["road_km_med"] = float(np.nanmedian(dr))
     if metnordic is not None:
         ests["MET Nordic"] = metnordic
+        ests["MET Nordic, rescaled"] = (metnordic[0] * crossfit_ratio(ws, metnordic[0], blk), metnordic[1])
+        if feats is not None:
+            u_, d_, cf = crossfit_exposure(metnordic[0], metnordic[1], ws, feats, blk)
+            ests["MET Nordic + exposure"] = (u_, d_); info["hybrid_coef"] = cf
     return ests, wq, info
 
 
 def load_country(country, out_no, out_se, data_no=None):
-    """cross-validated predictions and observations of one country (from 21_norway_cv_final.py / 14_final_cv.py),
+    """cross-validated predictions and observations of one country (from 11_norway.py / 14_final_cv.py),
     with the time blocks of the CV, the roadside distance matrix and, for Norway, MET Nordic at the stations"""
     import pickle
     from pathlib import Path
@@ -269,4 +326,5 @@ def load_country(country, out_no, out_se, data_no=None):
         M = pd.read_parquet(Path(data_no) / "metnordic_roadside.parquet"); M["t"] = pd.to_datetime(M.t, utc=True)
         piv = lambda c: M.pivot_table(index="t", columns="id", values=c).reindex(index=O["hours"], columns=O["ids"]).values
         mn = (piv("ws"), piv("wd"))
-    return P, O, blk, D, mn, z
+    feats = sector_features(O["ids"], data_no, mn[1]) if mn is not None else None
+    return P, O, blk, D, mn, z, feats

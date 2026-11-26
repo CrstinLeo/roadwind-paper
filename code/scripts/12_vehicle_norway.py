@@ -73,7 +73,7 @@ for site, f in (("dovre", NXD / "bins_dovre.parquet"), ("froya", NXD / "bins_fro
         x = np.array([1.0, T_near.loc[sid, knet], XH.loc[sid, knet], lnU_net, T_far.loc[sid, knet]])
         U10 = corr * F10 * np.exp(x @ b) * smear
         dist = np.array([float(haversine_km(r.lat, r.lon, S.loc[s, "lat"], S.loc[s, "lon"])) for s in ref_ids])
-        good = np.isfinite(U10) & (U10 > 0)
+        good = np.isfinite(U10) & (U10 > 0) & (dist <= cfg.max_pair_km)          # same 120 km cap as the CV model
         wgt = 1 / np.clip(dist, 3, None) ** 1.5
         U10c = float(np.exp(np.sum(wgt[good] * np.log(U10[good])) / np.sum(wgt[good])))
         U = fh * U10c
@@ -81,8 +81,8 @@ for site, f in (("dovre", NXD / "bins_dovre.parquet"), ("froya", NXD / "bins_fro
         alpha = wrap90(w.values - segmeta.loc[sid, "road_bearing"])
         wd4 = (w.values + d[0] + d[1] * np.sin(np.radians(2 * alpha)) * T_dir.loc[sid, knet]) % 360
         wdir = (dist <= 60) & np.isfinite(wd4)
-        if wdir.sum() < 2:
-            wdir = np.argsort(dist)[:2]
+        if wdir.sum() < 1:                                                     # as RECOMMENDED.min_n = 1
+            wdir = np.argsort(np.where(np.isfinite(wd4), dist, np.inf))[:1]
         wd_ = 1 / np.clip(dist[wdir], 3, None)
         phi = float(np.degrees(np.arctan2(np.sum(wd_ * np.sin(np.radians(wd4[wdir]))), np.sum(wd_ * np.cos(np.radians(wd4[wdir]))))) % 360)
         i_ref = int(np.nanargmin(np.where(ok.values, dist, np.nan)))
