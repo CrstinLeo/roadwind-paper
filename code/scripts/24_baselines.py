@@ -21,25 +21,36 @@ NO = Path(os.environ.get("SWW_NO_OUT", "output/no")); SE = Path(os.environ.get("
 DNO = Path(os.environ.get("SWW_NO_DATA", "data/no"))
 OUT = {}
 for country in ("Norway", "Sweden"):
-    P, O, blk, D, mn, _ = assess.load_country(country, NO, SE, DNO)
-    ests, wq, info = assess.build_estimators(P, O, blk, D, mn)
+    P, O, blk, D, mn, _, feats = assess.load_country(country, NO, SE, DNO)
+    ests, wq, info = assess.build_estimators(P, O, blk, D, mn, feats)
     ws = O["ws"].astype(float)
     spd = {k: u for k, (u, d) in ests.items()}
     o = dict(info=info, names=O.get("name"), ids=O["ids"])
     o["speed_all"], o["mae_station"] = assess.speed_metrics(spd, ws)
     common = np.isfinite(ws)
     for k, u in spd.items():
-        if k != "MET Nordic":
+        if not k.startswith("MET Nordic"):
             common &= np.isfinite(u)
-    o["speed_common"], _ = assess.speed_metrics({k: np.where(common, u, np.nan) for k, u in spd.items() if k != "MET Nordic"}, ws)
+    o["speed_common"], o["mae_station_common"] = assess.speed_metrics({k: np.where(common, u, np.nan) for k, u in spd.items() if not k.startswith("MET Nordic")}, ws)
     if mn is not None:
         cm = common & np.isfinite(mn[0])
-        o["speed_mn"], _ = assess.speed_metrics({k: np.where(cm, u, np.nan) for k, u in spd.items()}, ws)
+        for k in spd:
+            if k.startswith("MET Nordic"):
+                cm &= np.isfinite(spd[k])
+        o["speed_mn"], o["mae_station_mn"] = assess.speed_metrics({k: np.where(cm, u, np.nan) for k, u in spd.items()}, ws)
+        o["by_obs_mn"] = assess.by_observed({k: np.where(cm, u, np.nan) for k, u in spd.items()}, ws)   # strong wind on common hours
+        rng_ = np.random.default_rng(5); ms = o["mae_station_mn"]; ns_ = len(ms["corrected"])
+        o["paired_mn"] = {}
+        for k in ("MET Nordic", "MET Nordic, rescaled", "MET Nordic + exposure"):
+            d_ = ms["corrected"] - ms[k]
+            o["paired_mn"][k] = dict(mean=float(np.nanmean(d_)), se=float(np.nanstd(d_, ddof=1) / np.sqrt(np.isfinite(d_).sum())),
+                                     n_better=int(np.sum(d_ < 0)), n=int(np.isfinite(d_).sum()),
+                                     ci_med=np.percentile([np.nanmedian(ms["corrected"][i]) - np.nanmedian(ms[k][i]) for i in rng_.integers(0, ns_, (2000, ns_))], [2.5, 97.5]))
         o["mn_hours"] = int(cm.any(1).sum())
     ok_dir = info["dir_ok"] if country == "Norway" else assess.direction_coverage(ws, O["wd"].astype(float), min_hours=100)[1]
     o["dir"] = assess.direction_mae({k: d for k, (u, d) in ests.items()}, ws, wq, P["U0n"].astype(float), ok_dir)
     if mn is not None:
-        cmd = np.isfinite(mn[1])
+        cmd = np.isfinite(mn[1]) & cm
         o["dir_mn"] = assess.direction_mae({k: np.where(cmd, d, np.nan) for k, (u, d) in ests.items()}, ws, wq, P["U0n"].astype(float), ok_dir)
     o["reliability"] = {k: assess.reliability(spd[k], ws) for k in ("corrected", "calibrated", "nearest station", "rescaled nearest", "nearest road station")}
     o["by_obs"] = assess.by_observed(spd, ws)

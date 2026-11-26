@@ -26,14 +26,16 @@ NO = Path(os.environ.get("SWW_NO_OUT", "output/no")); SE = Path(os.environ.get("
 FIG = Path(os.environ.get("SWW_FIG", Path(__file__).resolve().parents[2] / "figures"))
 BLUE, ORANGE, GREEN, PURPLE, INK, MUTED, GRID = "#2a78d6", "#eb6834", "#1baf7a", "#6250d6", "#1d1d1b", "#6b6a65", "#e4e3de"
 LIGHT, GOLD = "#b9b8b2", "#c98a12"
-plt.rcParams.update({"font.family": "DejaVu Sans", "font.size": 8, "axes.titlesize": 8.5, "axes.labelsize": 8, "xtick.labelsize": 7.5,
-                     "ytick.labelsize": 7.5, "legend.fontsize": 7.5, "axes.spines.top": False, "axes.spines.right": False,
+plt.rcParams.update({"font.family": "DejaVu Sans", "font.size": 9, "axes.titlesize": 9, "axes.labelsize": 9, "xtick.labelsize": 8.5,
+                     "ytick.labelsize": 8.5, "legend.fontsize": 8, "axes.spines.top": False, "axes.spines.right": False,
                      "axes.grid": True, "grid.color": GRID, "grid.linewidth": 0.5, "axes.linewidth": 0.6, "lines.linewidth": 1.4,
                      "savefig.bbox": "tight", "pdf.fonttype": 42, "ps.fonttype": 42})
 W2 = 7.2
 C = {"Norway": ORANGE, "Sweden": BLUE}
 EST = [("no wind", "no wind", LIGHT), ("nearest station", "nearest station", MUTED), ("rescaled nearest", "rescaled nearest", GOLD),
-       ("nearest road station", "nearest road station", GREEN), ("MET Nordic", "MET Nordic", PURPLE), ("corrected", "corrected (this study)", ORANGE)]
+       ("nearest road station", "nearest road station", GREEN), ("MET Nordic", "MET Nordic", PURPLE),
+       ("MET Nordic, rescaled", "MET Nordic, rescaled", "#a99be8"), ("MET Nordic + exposure", "MET Nordic + exposure", "#3a2a99"),
+       ("corrected", "corrected (this study)", ORANGE)]
 ECOL = {k: c for k, _, c in EST}; ELAB = {k: l for k, l, _ in EST}
 
 
@@ -54,7 +56,7 @@ def paired(a, b):
 def fig_sens_norway():
     R = pickle.load(open(NO / "norway_results.pkl", "rb"))
     base = R["cv_final"]["mae"]
-    panels = [("tree_R", "near-tree share $T_R$", ["none", "50 m", "100 m", "200 m", "300 m", "500 m"], "100 m"),
+    panels = [("tree_R", "near-tree share (radius)", ["none", "50 m", "100 m", "200 m", "300 m", "500 m"], "100 m"),
               ("far", "landscape forest fraction", ["none", "300 m", "500 m", "1 km upwind", "1 km all dir.", "1 km + ring 300 m"], "1 km all dir."),
               ("km", "radius of station combination", ["20 km", "40 km", "80 km", "120 km"], "120 km"),
               ("power", "weight exponent $p$ in $d^{-p}$", ["0.5", "1.0", "1.5", "2.0"], "1.5"),
@@ -105,7 +107,7 @@ def fig_two_scale():
 def fig_error_structure():
     BL = pickle.load(open(NO / "baselines.pkl", "rb"))
     R = pickle.load(open(NO / "norway_results.pkl", "rb"))
-    fig, ax = plt.subplots(1, 4, figsize=(W2, 2.25), gridspec_kw=dict(width_ratios=[1, 1, 1.15, 1.15]))
+    fig, axs = plt.subplots(2, 2, figsize=(W2, 5.0)); ax = axs.ravel()
     a = ax[0]
     for country in ("Norway", "Sweden"):
         ms = BL[country]["mae_station"]
@@ -120,14 +122,14 @@ def fig_error_structure():
     a.plot(t.est, t.obs, "-", color=BLUE, marker="o", ms=2.5, label="corrected, Sweden")
     a.plot([0, 18], [0, 18], color=INK, lw=0.5)
     a.set_xlim(0, 18); a.set_ylim(0, 18); a.set_xlabel("estimate (bin mean) [m s$^{-1}$]"); a.set_ylabel("observed (bin mean) [m s$^{-1}$]")
-    a.legend(frameon=False, loc="upper left", fontsize=6.3)
+    a.legend(frameon=False, loc="upper left", fontsize=7.5)
     a = ax[2]                                                       # MAE by observed class, Norway, all estimators
-    b = BL["Norway"]["by_obs"]
-    for k in ("nearest station", "rescaled nearest", "nearest road station", "MET Nordic", "corrected"):
+    b = BL["Norway"]["by_obs_mn"]                                   # all estimators on the same (MET Nordic) hours
+    for k in ("nearest station", "rescaled nearest", "nearest road station", "MET Nordic", "MET Nordic + exposure", "corrected"):
         t = b[(b.est == k) & (b.n >= 100)]
         xc = np.where(np.isinf(t.hi), t.lo + 2.5, 0.5 * (t.lo + t.hi))
         a.plot(xc, t.mae, "-o", ms=2.5, color=ECOL[k], label=ELAB[k], lw=1.6 if k == "corrected" else 1.0)
-    a.set_xlabel("observed roadside wind [m s$^{-1}$]"); a.set_ylabel("MAE [m s$^{-1}$]"); a.legend(frameon=False, loc="upper left", fontsize=6.0)
+    a.set_xlabel("observed roadside wind [m s$^{-1}$]"); a.set_ylabel("MAE [m s$^{-1}$]"); a.legend(frameon=False, loc="upper left", fontsize=7.5)
     a = ax[3]; P, O = R["pred_final"], R["obs"]; mon = pd.DatetimeIndex(O["hours"]).month
     U, U0, ws = P["U"].astype(float), P["U0n"].astype(float), O["ws"].astype(float)
     mm = [np.nanmean(np.abs(U[mon == k] - ws[mon == k])) for k in range(1, 13)]
@@ -136,8 +138,8 @@ def fig_error_structure():
     a.set_xticks(range(1, 13)); a.set_xticklabels(list("JFMAMJJASOND")); a.set_ylabel("MAE [m s$^{-1}$]"); a.set_xlabel("month (Norway)")
     a.legend(frameon=False, loc="upper center", fontsize=6.5); a.grid(axis="x", visible=False)
     for a_, s in zip(ax, "abcd"):
-        label(a_, s, x=-0.28)
-    fig.tight_layout(w_pad=0.9)
+        label(a_, s, x=-0.16)
+    fig.tight_layout(w_pad=1.2, h_pad=1.2)
     save(fig, "fig10_error_structure")
 
 
@@ -157,7 +159,7 @@ def fig_energy():
         a.plot(vals, y + dy, "o", color=C[c], ms=3.5, label=c)
         ci = EN[c][("vecto", 80)]["ci"]["pen_mean"]
         a.plot(ci, [y[0] + dy] * 2, "-", color=C[c], lw=2.2, alpha=0.6)
-    a.set_yticks(y); a.set_yticklabels([l for _, l in labs], fontsize=6.6); a.set_xlabel("mean wind penalty [%]")
+    a.set_yticks(y); a.set_yticklabels([l for _, l in labs], fontsize=8); a.set_xlabel("mean wind penalty [%]")
     a.set_xlim(0, 30); a.grid(axis="y", visible=False)
     a.legend(frameon=False, fontsize=7, loc="center right")
     a = ax[1]                                                       # station-site penalties
@@ -165,14 +167,15 @@ def fig_energy():
         pt = EN[c][("vecto", 80)]["point"]
         a.scatter(pt["pen_station"], pt["nearest station"]["pen_station"], s=8, facecolors="none", edgecolors=LIGHT, lw=0.7)
         a.scatter(pt["pen_station"], pt["corrected"]["pen_station"], s=8, color=C[c], lw=0, alpha=0.85)
-    a.scatter([], [], s=9, facecolors="none", edgecolors=LIGHT, label="nearest station"); a.scatter([], [], s=9, color=INK, label="corrected")
+    a.scatter([], [], s=9, facecolors="none", edgecolors=LIGHT, label="nearest station")
+    a.scatter([], [], s=9, color=ORANGE, label="corrected, Norway"); a.scatter([], [], s=9, color=BLUE, label="corrected, Sweden")
     lim = 50; a.plot([0, lim], [0, lim], color=INK, lw=0.6); a.set_xlim(0, lim); a.set_ylim(0, lim + 15)
     a.set_xlabel("observed penalty at the site [%]"); a.set_ylabel("estimated penalty [%]"); a.legend(frameon=False, loc="upper left", fontsize=6.5)
     a = ax[2]                                                       # skill of all estimators with CI
-    names = ["nearest station", "rescaled nearest", "nearest road station", "MET Nordic", "corrected"]
+    names = ["nearest station", "rescaled nearest", "nearest road station", "MET Nordic", "MET Nordic, rescaled", "MET Nordic + exposure", "corrected"]
     for i, k in enumerate(names):
         for c, dy in (("Norway", 0.17), ("Sweden", -0.17)):
-            src = EN[c].get("metnordic_hours") if k == "MET Nordic" else EN[c][("vecto", 80)]
+            src = EN[c].get("metnordic_hours") if k.startswith("MET Nordic") else EN[c][("vecto", 80)]
             if src is None or k not in src["point"]:
                 continue
             v, ci = src["point"][k]["skill"], src["ci"][k]["skill"]
@@ -180,14 +183,14 @@ def fig_energy():
             a.plot([max(ci[0], -1.2), ci[1]], [yy, yy], "-", color=C[c], lw=1.2)
             a.plot(max(v, -1.2), yy, "o" if v > -1.2 else "<", color=C[c], ms=3.5)
     a.axvline(0, color=INK, lw=0.6)
-    a.set_yticks(range(len(names))[::-1]); a.set_yticklabels([ELAB[k] for k in names], fontsize=6.6); a.set_xlim(-1.25, 1.0)
+    a.set_yticks(range(len(names))[::-1]); a.set_yticklabels([ELAB[k] for k in names], fontsize=8); a.set_xlim(-1.25, 1.0)
     a.set_xlabel("skill vs ignoring the wind\n$1-\\mathrm{MSE}/\\mathrm{MSE}_\\mathrm{no\\ wind}$"); a.grid(axis="y", visible=False)
     a = ax[3]                                                       # decomposition
     w = 0.36
     for i, c in enumerate(("Norway", "Sweden")):
         pt = EN[c][("vecto", 80)]["point"]
         a.bar(np.arange(3) + (i - 0.5) * w, [pt["pen_mean"], pt["pen_head"], pt["pen_cross"]], w, color=C[c], alpha=0.85 if i == 0 else 0.6, label=c)
-    a.set_xticks(range(3)); a.set_xticklabels(["total", "head/tail only", "crosswind only"], fontsize=7); a.set_ylabel("mean penalty [%]")
+    a.set_xticks(range(3)); a.set_xticklabels(["total", "head/tail\nonly", "crosswind\nonly"], fontsize=8); a.set_ylabel("mean penalty [%]")
     a.grid(axis="x", visible=False); a.legend(frameon=False, fontsize=7)
     for a_, s, x in zip(ax, "abcd", (-0.5, -0.2, -0.5, -0.2)):
         label(a_, s, x=x)
@@ -202,7 +205,7 @@ def fig_vehicle():
     V["h"] = pd.to_datetime(V.t, utc=True).dt.round("1h")
     est = [("ref_raw", "ref_dir", "nearest station", MUTED), ("road_raw", "road_dir", "nearest road station", GREEN),
            ("metnordic", "metnordic_dir", "MET Nordic", PURPLE), ("model", "model_dir", "corrected (this study)", ORANGE)]
-    fig, ax = plt.subplots(1, 3, figsize=(W2, 2.4), gridspec_kw=dict(width_ratios=[1, 1.2, 1.25]))
+    fig, ax = plt.subplots(1, 3, figsize=(W2, 3.8), gridspec_kw=dict(width_ratios=[1, 1.15, 1.25]))
     a = ax[0]
     g = V.groupby("h")
     for c, _, lab, col in est:
@@ -213,20 +216,20 @@ def fig_vehicle():
     a.plot([0, 16], [0, 16], color=INK, lw=0.6); a.set_xlim(0, 12); a.set_ylim(0, 16)
     a.set_xlabel("van, hour mean [m s$^{-1}$]"); a.set_ylabel("estimate, hour mean [m s$^{-1}$]")
     a.text(0.97, 0.03, "○ Dovre  △ Frøya", transform=a.transAxes, ha="right", fontsize=6.5, color=MUTED)
-    a.legend(frameon=False, fontsize=6.0, loc="upper left")
+    a.legend(frameon=False, fontsize=7.5, loc="upper center", bbox_to_anchor=(0.5, -0.3), ncol=1)
     a = ax[1]
     res = EN["vehicle"]["vecto"]
     names = ["no wind", "nearest station", "nearest road station", "MET Nordic", "corrected"]
     for i, k in enumerate(names):
         r = res[k]; yy = len(names) - 1 - i
         a.plot(r["mae_ci"], [yy, yy], "-", color=ECOL[k], lw=1.4); a.plot(r["mae"], yy, "o", color=ECOL[k], ms=4)
-    a.set_yticks(range(len(names))[::-1]); a.set_yticklabels([ELAB[k] for k in names], fontsize=6.6)
+    a.set_yticks(range(len(names))[::-1]); a.set_yticklabels([ELAB[k] for k in names], fontsize=8)
     a.set_xlabel("hourly energy MAE [kWh/100 km]\n(8 reference hours, 95 % CI)"); a.grid(axis="y", visible=False)
     a = ax[2]
     vv = 80 / 3.6
-    combos = [("model", "model_dir", "speed: this study, dir.: this study"), ("model", "metnordic_dir", "speed: this study, dir.: MET Nordic"),
-              ("metnordic", "model_dir", "speed: MET Nordic, dir.: this study"), ("metnordic", "metnordic_dir", "speed: MET Nordic, dir.: MET Nordic"),
-              ("model", "dir_veh", "speed: this study, dir.: measured"), ("metnordic", "dir_veh", "speed: MET Nordic, dir.: measured")]
+    combos = [("model", "model_dir", "speed: corrected\ndir.: corrected"), ("model", "metnordic_dir", "speed: corrected\ndir.: MET Nordic"),
+              ("metnordic", "model_dir", "speed: MET Nordic\ndir.: corrected"), ("metnordic", "metnordic_dir", "speed: MET Nordic\ndir.: MET Nordic"),
+              ("model", "dir_veh", "speed: corrected\ndir.: measured"), ("metnordic", "dir_veh", "speed: MET Nordic\ndir.: measured")]
     from smhi_trv_wind import assess
     Et = assess.energy(V.w_veh.values, V.dir_veh.values, V.heading.values)
     vals = []
@@ -235,12 +238,12 @@ def fig_vehicle():
         g_ = pd.DataFrame(dict(h=V.h.values, t=Et, e=Ee)).groupby("h").mean()
         vals.append(float(np.mean(np.abs(g_.e - g_.t))))
     cols = [ORANGE, ORANGE, PURPLE, PURPLE, ORANGE, PURPLE]
-    a.barh(range(len(vals))[::-1], vals, color=cols, alpha=0.75, height=0.65)
-    a.set_yticks(range(len(vals))[::-1]); a.set_yticklabels([c[2] for c in combos], fontsize=6.0)
+    a.barh(range(len(vals))[::-1], vals, color=cols, alpha=0.75, height=0.55)
+    a.set_yticks(range(len(vals))[::-1]); a.set_yticklabels([c[2] for c in combos], fontsize=7.5)
     a.set_xlabel("hourly energy MAE [kWh/100 km]"); a.grid(axis="y", visible=False)
     for i, v in enumerate(vals):
         a.text(v + 0.3, len(vals) - 1 - i, f"{v:.1f}", va="center", fontsize=6.5)
-    for a_, s, x in zip(ax, "abc", (-0.25, -0.62, -1.05)):
+    for a_, s, x in zip(ax, "abc", (-0.3, -0.75, -0.75)):
         label(a_, s, x=x)
     fig.tight_layout(w_pad=0.8)
     save(fig, "fig06_vehicle_validation")

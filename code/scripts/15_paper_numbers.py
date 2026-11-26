@@ -35,7 +35,7 @@ pc = lambda x: f"{100 * x:.0f}"
 
 # ---------------- data
 m = R["meta"]
-N.update(noHours=f"{m['hours']:,}".replace(",", "\\,"), noTrv=m["n_trv"], noRef=m["n_ref"], noPairs=m["n_pairs"],
+N.update(noHours=f"{m['hours']:,}".replace(",", "\\,"), noTrv=m["n_trv"], noRef=int(R["site_c"].notna().any(axis=1).sum()), noPairs=m["n_pairs"],
          noStart=m["start"][:10], noEnd=m["end"][:10], seHours=SEcv["hours"], seTrv=SEcv["n_trv"], seRef=SEres.smhi.shape[0])
 
 # share of Norwegian hourly speeds removed by the quality control (all Frost stations of the region, raw download)
@@ -131,6 +131,11 @@ dd = {k: paired(v["mae"], f24) for k, v in S24.items() if k != "final"}
 best = min(dd, key=lambda k: dd[k][0])
 N["noSelBest"] = best; N["noSelBestD"], N["noSelBestSE"] = f"{dd[best][0]:+.3f}", f"{dd[best][1]:.3f}"
 N["noSelWithinSE"] = "yes" if all(d > -s_ for d, s_ in dd.values()) else "no"
+N["noSelTreeD"], N["noSelTreeSE"] = f"{dd['tree 50 m'][0]:+.3f}", f"{dd['tree 50 m'][1]:.3f}"
+N["noSelPowD"], N["noSelPowSE"] = f"{dd['power 1'][0]:+.3f}", f"{dd['power 1'][1]:.3f}"
+_better = sorted(k for k, (d, s_) in dd.items() if d < -s_)
+assert _better == ["tree 50 m"], f"text says only 'tree 50 m' beats the final model by > 1 SE on 2024: {_better}"
+assert all(d > -2 * s_ for d, s_ in dd.values()), "text says no alternative is better by more than 2 SE on 2024"
 rw = RV["rows"]; rng_ = np.random.default_rng(0); nst = len(rw["XtX"])
 Bb = np.array([np.linalg.solve(rw["XtX"][i].sum(0), rw["Xty"][i].sum(0)) for i in (rng_.integers(0, nst, nst) for _ in range(2000))])
 COEF_CI = {"Norway": np.percentile(Bb, [2.5, 97.5], 0)}
@@ -219,7 +224,8 @@ BET_TOTAL = 96.0          # kWh/100 km, mean real-world battery-side consumption
 ETA_DRIVE = 0.85          # battery-to-wheel efficiency used to compare wheel energy with battery-side consumption
 f1 = lambda x: f"{x:.1f}"
 NM = {"no wind": "None", "nearest station": "Raw", "rescaled nearest": "Resc", "nearest road station": "Road",
-      "corrected": "Cor", "calibrated": "Cal", "MET Nordic": "Mn"}
+      "corrected": "Cor", "calibrated": "Cal", "MET Nordic": "Mn", "MET Nordic, rescaled": "MnResc", "MET Nordic + exposure": "MnExp",
+      "corrected, no T100": "CorNoTree"}
 N["enEzero"] = f1(EN["Norway"][("vecto", 80)]["sums"]["E0"]); N["enBetTotal"] = f"{BET_TOTAL:.0f}"; N["enEta"] = f"{ETA_DRIVE:.2f}"
 for c, pre in (("Norway", "No"), ("Sweden", "Se")):
     o = EN[c]; B = o[("vecto", 80)]; pt, ci = B["point"], B["ci"]; E0 = B["sums"]["E0"]
@@ -241,21 +247,31 @@ for c, pre in (("Norway", "No"), ("Sweden", "Se")):
         N[f"enMaeRt{pre}{nm}"] = f1(m["mae_rt"])
         N[f"enSs{pre}{nm}"] = f2(m["skill"]); N[f"enSs{pre}{nm}Lo"], N[f"enSs{pre}{nm}Hi"] = (f2(x) for x in cc["skill"])
         N[f"enBias{pre}{nm}"] = f"{m['bias_med']:+.1f}"; N[f"enStrong{pre}{nm}"] = f1(m["strong_mae"])
+        N[f"enCond{pre}{nm}"] = f1(m["cond_mae"]); N[f"enCondSs{pre}{nm}"] = f2(m["cond_skill"])
+        N[f"enStSs{pre}{nm}"] = f2(m["st_skill_med"]); N[f"enStPos{pre}{nm}"] = m["n_skill_pos"]; N[f"enStGain{pre}{nm}"] = m["n_mae_gain"]
         N[f"enRoadMean{pre}{nm}"] = f1(np.mean(m["pen_station"])); N[f"enRoadMae{pre}{nm}"] = f1(m["pen_mae"])
         if k != "no wind":
             N[f"enRoadCorr{pre}{nm}"] = f2(m["corr"]); N[f"enRoadCorr{pre}{nm}Lo"], N[f"enRoadCorr{pre}{nm}Hi"] = (f2(x) for x in cc["corr"])
     N[f"enMaeGain{pre}"] = f"{100 * (1 - pt['corrected']['mae'] / pt['no wind']['mae']):.0f}"
     N[f"enMaeGainRaw{pre}"] = f"{100 * (1 - pt['corrected']['mae'] / pt['nearest station']['mae']):.0f}"
     N[f"enStrongGain{pre}"] = f"{100 * (1 - pt['corrected']['strong_mae'] / pt['no wind']['strong_mae']):.0f}"
+    N[f"enCondGain{pre}"] = f"{100 * (1 - pt['corrected']['cond_mae'] / pt['no wind']['cond_mae']):.0f}"
+    if "band_skill" in o:
+        for lab, key in (("no reduction", "NoRed"), ("z0 0.3 d 2", "Disp")):
+            bs = o["band_skill"][lab]
+            N[f"enBandSs{pre}{key}Cor"], N[f"enBandSs{pre}{key}Raw"] = f2(bs["corrected"][0]), f2(bs["nearest station"][0])
     for (a_, b_, kk), (d_, cci) in B["diff"].items():
         key = f"enD{pre}{NM[a_]}{NM[b_]}{kk.title().replace('_', '')}"
-        N[key] = f2(d_) if kk in ("corr", "skill") else f1(d_)
-        N[key + "Lo"], N[key + "Hi"] = ((f2 if kk in ("corr", "skill") else f1)(x) for x in cci)
+        N[key] = f2(d_); N[key + "Lo"], N[key + "Hi"] = (f2(x) for x in cci)
     if "metnordic_hours" in o:
         M = o["metnordic_hours"]
-        for k in ("MET Nordic", "corrected", "no wind", "nearest road station", "nearest station"):
+        for (a_, b_, kk), (d_, cci) in M["diff"].items():
+            key = f"enMnhD{pre}{NM[a_]}{NM[b_]}{kk.title().replace('_', '')}"
+            N[key] = f2(d_); N[key + "Lo"], N[key + "Hi"] = (f2(x) for x in cci)
+        for k in ("MET Nordic", "MET Nordic, rescaled", "MET Nordic + exposure", "corrected", "no wind", "nearest road station", "nearest station"):
             nm = NM[k]
             N[f"enMnh{pre}Mae{nm}"] = f1(M["point"][k]["mae"]); N[f"enMnh{pre}Ss{nm}"] = f2(M["point"][k]["skill"])
+            N[f"enMnh{pre}StPos{nm}"] = M["point"][k]["n_skill_pos"]
             N[f"enMnh{pre}Ss{nm}Lo"], N[f"enMnh{pre}Ss{nm}Hi"] = (f2(x) for x in M["ci"][k]["skill"])
             if k != "no wind":
                 N[f"enMnh{pre}Corr{nm}"] = f2(M["point"][k]["corr"])
@@ -303,12 +319,15 @@ for model, suf in (("vecto", ""), ("model1", "MOne")):
             N[f"vehSpdBias{nm}{suf}"] = f"{r['spd_bias']:+.0f}"
     N[f"enVehTrue{suf}"] = f1(VE[model + "_true"]["mean"]); N[f"enVehPen{suf}"] = f"{VE[model + '_true']['pen']:.0f}"
 ns = VE["near_station"]
+_Vn = pd.read_parquet(NO / "vehicle_validation_rows.parquet"); _Vn = _Vn[_Vn.road_km <= 0.1]
+_rh = _Vn.groupby(pd.to_datetime(_Vn.t, utc=True).dt.round("1h")).apply(lambda g: g.w_veh.mean() / g.road_raw.mean())
+N.update(vehNearRatioMin=f2(_rh.min()), vehNearRatioMax=f2(_rh.max()))
 N.update(vehNearSeg=ns["n_seg"], vehNearHours=ns["n_hours"], vehNearRatio=f2(ns["ratio"]), vehNearFactor=f2(ns["implied_factor"]))
 
 # baselines for wind speed (24_baselines.py)
 BL = pickle.load(open(NO / "baselines.pkl", "rb"))
 for c, pre in (("Norway", "no"), ("Sweden", "se")):
-    t = BL[c]["speed_all"].set_index("est")
+    t = BL[c]["speed_common"].set_index("est")                 # all station-based estimators on the same hours
     for k, nm in NM.items():
         if k in t.index:
             N[f"{pre}Spd{nm}"] = f2(t.loc[k, "mae_med"]); N[f"{pre}Spd{nm}Lo"], N[f"{pre}Spd{nm}Hi"] = f2(t.loc[k, "mae_lo"]), f2(t.loc[k, "mae_hi"])
@@ -318,8 +337,14 @@ for c, pre in (("Norway", "no"), ("Sweden", "se")):
             N[f"{pre}Dir{nm}"] = f"{BL[c]['dir'][k]:.0f}"
     if "speed_mn" in BL[c]:
         tm = BL[c]["speed_mn"].set_index("est")
-        for k in ("MET Nordic", "corrected", "nearest road station", "nearest station"):
+        for k in ("MET Nordic", "MET Nordic, rescaled", "MET Nordic + exposure", "corrected", "nearest road station", "nearest station"):
             N[f"{pre}SpdMnh{NM[k]}"] = f2(tm.loc[k, "mae_med"]); N[f"{pre}SpdBiasMnh{NM[k]}"] = f"{tm.loc[k, 'rbias_med']:+.0f}"
+            N[f"{pre}SpdMnh{NM[k]}Lo"], N[f"{pre}SpdMnh{NM[k]}Hi"] = f2(tm.loc[k, "mae_lo"]), f2(tm.loc[k, "mae_hi"])
+        for k, v_ in BL[c]["paired_mn"].items():                 # corrected - MET Nordic variant, per-station MAE
+            N[f"{pre}PairCor{NM[k]}"] = f"{v_['mean']:+.2f}"; N[f"{pre}PairCor{NM[k]}SE"] = f"{v_['se']:.2f}"
+            N[f"{pre}PairCor{NM[k]}Better"] = v_["n_better"]
+        N[f"{pre}MnHours"] = f"{BL[c]['mn_hours']:,}".replace(",", "\\,")
+        N[f"{pre}HybFar"] = f2(BL[c]["info"]["hybrid_coef"].mean(0)[4])
         dm = BL[c]["dir_mn"]
         N[f"{pre}DirMnhMn"], N[f"{pre}DirMnhCor"] = f"{dm['MET Nordic']:.0f}", f"{dm['corrected']:.0f}"
     rel = BL[c]["reliability"]
@@ -331,8 +356,8 @@ for c, pre in (("Norway", "no"), ("Sweden", "se")):
     N[f"{pre}RelCalMin"], N[f"{pre}RelCalMax"] = f2(rk.ratio.iloc[1:].min()), f2(rk.ratio.iloc[1:].max())
     rn = rel["nearest station"]; rn = rn[rn.n >= 100]
     N[f"{pre}RelRawHigh"] = f2(rn.ratio.iloc[-1])
-    b = BL[c]["by_obs"]
-    for k in ("corrected", "nearest station", "nearest road station", "rescaled nearest", "MET Nordic"):
+    b = BL[c].get("by_obs_mn", BL[c]["by_obs"])                 # strong wind: all estimators on the same (MET Nordic) hours
+    for k in ("corrected", "nearest station", "nearest road station", "rescaled nearest", "MET Nordic", "MET Nordic, rescaled", "MET Nordic + exposure"):
         g_ = b[(b.est == k) & (b.lo == 15)]
         if len(g_) and g_.n.iloc[0] >= 50:
             N[f"{pre}StrongObs{NM[k]}"] = f2(g_.mae.iloc[0]); N[f"{pre}StrongObsMe{NM[k]}"] = f"{g_.me.iloc[0]:+.1f}"
@@ -397,6 +422,7 @@ with open(GEN / "tab_coefs.tex", "w") as f:
         f.write(f"{n_} & {fmt(no_v[i])} & {fmt(no_f[:, i].min())}\\,…\\,{fmt(no_f[:, i].max())} & {_ci('Norway', i)} & "
                 f"{fmt(se_v[i])} & {fmt(se_f[:, i].min())}\\,…\\,{fmt(se_f[:, i].max())} & {_ci('Sweden', i)} \\\\\n")
     f.write("\\bottomrule\n\\end{tabular}\n")
+N.update(noFarFortyLo=f"{100 * (1 - np.exp(0.4 * COEF_CI['Norway'][1, 4])):.0f}", noFarFortyHi=f"{100 * (1 - np.exp(0.4 * COEF_CI['Norway'][0, 4])):.0f}")
 N.update(noSmear=f2(R["coef"]["smear"]), seSmear=f2(SEcv["coef"]["smear"]),
          noFarFortyPct=f"{100 * (1 - np.exp(0.4 * R['coef']['b'][4])):.0f}", noFarRatio=f"{R['coef']['b'][4] / SEcv['coef']['b'][4]:.1f}",
          noLadRawBiasAbs=f"{100 * L['rbias_U0'].median():.0f}", seLadRawBiasAbs=f"{100 * lad.rbias.iloc[0]:.0f}")
@@ -416,27 +442,34 @@ with open(GEN / "tab_skill.tex", "w") as f:
 
 # ---------------- table: estimators of the roadside wind (Norway)
 EB = EN["Norway"][("vecto", 80)]; EM = EN["Norway"].get("metnordic_hours")
-tS = BL["Norway"]["speed_all"].set_index("est"); tSm = BL["Norway"].get("speed_mn")
-rows_ = [("no wind", "No wind"), ("nearest station", "Nearest reference station"), ("rescaled nearest", "Nearest station, rescaled"),
-         ("nearest road station", "Nearest other road station"), ("MET Nordic", "MET Nordic analysis$^{*}$"),
-         ("corrected", "Corrected (this study)"), ("calibrated", "Corrected, recalibrated")]
+tS = BL["Norway"]["speed_common"].set_index("est"); tSm = BL["Norway"].get("speed_mn")
+nst_ = EN["Norway"]["n_station"]
+rows_ = [("no wind", "No wind", "all"), ("nearest station", "Nearest reference station", "all"),
+         ("rescaled nearest", "Nearest station, rescaled", "all"), ("nearest road station", "Nearest other road station", "all"),
+         ("corrected", "Corrected (this study)", "all"), ("calibrated", "Corrected, recalibrated", "all"),
+         ("corrected", "Corrected (this study)", "mn"), ("MET Nordic", "MET Nordic analysis", "mn"),
+         ("MET Nordic, rescaled", "MET Nordic, rescaled", "mn"), ("MET Nordic + exposure", "MET Nordic + exposure model", "mn")]
 with open(GEN / "tab_estimators.tex", "w") as f:
-    f.write("\\begin{tabular}{>{\\raggedright\\arraybackslash}p{0.2\\textwidth}cccccc}\n\\toprule\n")
-    f.write(" & \\multicolumn{3}{c}{wind} & \\multicolumn{3}{c}{air-drag energy} \\\\\n\\cmidrule(lr){2-4}\\cmidrule(lr){5-7}\n")
-    f.write("Estimator & speed MAE & bias [\\%] & dir.\\ [deg] & MAE & skill & $r$ \\\\\n\\midrule\n")
-    for k, lab in rows_:
-        if k == "MET Nordic":
-            if tSm is None or EM is None:
-                continue
+    f.write("\\begin{tabular}{>{\\raggedright\\arraybackslash}p{0.21\\textwidth}ccccccc}\n\\toprule\n")
+    f.write(" & \\multicolumn{3}{c}{wind (59 stations)} & \\multicolumn{4}{c}{air-drag energy (%d stations)} \\\\\n\\cmidrule(lr){2-4}\\cmidrule(lr){5-8}\n" % nst_)
+    f.write("Estimator & speed MAE & bias [\\%] & dir.\\ [deg] & MAE & skill & sites & $r$ \\\\\n\\midrule\n")
+    f.write("\\multicolumn{8}{l}{\\textit{All hours}}\\\\\n")
+    for k, lab, grp in rows_:
+        if grp == "mn" and (tSm is None or EM is None):
+            continue
+        if grp == "mn" and k == "corrected":
+            f.write("\\multicolumn{8}{l}{\\textit{Every third hour (MET Nordic available)}}\\\\\n")
+        if grp == "mn":
             sp = tSm.set_index("est").loc[k]; en, ec = EM["point"][k], EM["ci"][k]; dr_ = BL["Norway"]["dir_mn"].get(k)
         else:
             sp = tS.loc[k] if k in tS.index else None; en, ec = EB["point"][k], EB["ci"][k]; dr_ = BL["Norway"]["dir"].get(k)
         spd = f"{sp.mae_med:.2f} [{sp.mae_lo:.2f}, {sp.mae_hi:.2f}]" if sp is not None else "--"
-        bia = f"${sp.rbias_med:+.0f}$" if sp is not None else "--"
+        bia = (f"${sp.rbias_med:+.0f}$" if abs(sp.rbias_med) >= 0.5 else "$0$") if sp is not None else "--"
         dd_ = f"{dr_:.0f}" if dr_ is not None and k != "no wind" else "--"
         sk = f"${en['skill']:+.2f}$ [${ec['skill'][0]:+.2f}$, ${ec['skill'][1]:+.2f}$]" if k != "no wind" else "0"
+        sites = f"{en['n_skill_pos']}" if k != "no wind" else "--"
         rr = f"{en['corr']:.2f}" if k != "no wind" else "--"
-        f.write(f"{lab} & {spd} & {bia} & {dd_} & {en['mae']:.1f} & {sk} & {rr} \\\\\n")
+        f.write(f"{lab} & {spd} & {bia} & {dd_} & {en['mae']:.1f} & {sk} & {sites} & {rr} \\\\\n")
     f.write("\\bottomrule\n\\end{tabular}\n")
 
 # ---------------- table: vehicle height, by reference hour
@@ -445,9 +478,9 @@ vrows = [(None, None, "No wind", "no wind"), ("ref_raw", "ref_dir", "Nearest ref
          ("road_raw", "road_dir", "Nearest road weather station", "nearest road station"), ("metnordic", "metnordic_dir", "MET Nordic analysis", "MET Nordic"),
          ("model", "model_dir", "Corrected (this study)", "corrected"), ("model_loc", "model_dir", "Corrected, local-$z_0$ profile", "corrected, local z0")]
 with open(GEN / "tab_vehicle.tex", "w") as f:
-    f.write("\\begin{tabular}{>{\\raggedright\\arraybackslash}p{0.27\\textwidth}cccccc}\n\\toprule\n")
-    f.write(" & \\multicolumn{3}{c}{speed MAE [m\\,s$^{-1}$]} & direction & \\multicolumn{2}{c}{energy [kWh/100\\,km]} \\\\\n\\cmidrule(lr){2-4}\\cmidrule(lr){6-7}\n")
-    f.write("Estimate & Dovre & Frøya & all & MAE [deg] & MAE [95\\,\\% CI] & bias [\\%] \\\\\n\\midrule\n")
+    f.write("\\begin{tabular}{>{\\raggedright\\arraybackslash}p{0.3\\textwidth}ccccc}\n\\toprule\n")
+    f.write(" & \\multicolumn{3}{c}{speed MAE [m\\,s$^{-1}$]} & \\multicolumn{2}{c}{energy [kWh/100\\,km]} \\\\\n\\cmidrule(lr){2-4}\\cmidrule(lr){5-6}\n")
+    f.write("Estimate & Dovre & Frøya & all & MAE [95\\,\\% CI] & bias [\\%] \\\\\n\\midrule\n")
     for c_, dcol, lab, ek in vrows:
         if c_ is not None and c_ not in V:
             continue
@@ -458,7 +491,7 @@ with open(GEN / "tab_vehicle.tex", "w") as f:
             hh = V.groupby(["site", "h"]).agg(w=("w_veh", "mean"), e=(c_, "mean")).reset_index()
             sp_ = [f"{np.mean(np.abs(g.e - g.w)):.2f}" for g in (hh[hh.site == "dovre"], hh[hh.site == "froya"], hh)]
             dmae = f"{np.nanmean(np.abs(wrap180(V[dcol] - V.dir_veh))[V.w_veh >= 2]):.0f}"
-        f.write(f"{lab} & {' & '.join(sp_)} & {dmae} & {r['mae']:.1f} [{r['mae_ci'][0]:.1f}, {r['mae_ci'][1]:.1f}] & ${r['bias']:+.0f}$ \\\\\n")
+        f.write(f"{lab} & {' & '.join(sp_)} & {r['mae']:.1f} [{r['mae_ci'][0]:.1f}, {r['mae_ci'][1]:.1f}] & ${r['bias']:+.0f}$ \\\\\n")
     f.write("\\bottomrule\n\\end{tabular}\n")
 
 with open(GEN / "numbers.tex", "w") as f:

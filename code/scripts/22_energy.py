@@ -10,7 +10,7 @@ Stations enter the energy analysis only with adequate direction coverage (>= 200
 Norway, >= 50 % in Sweden) after a stuck-direction check; all estimators are scored on the same hours.
 Intervals: station-cluster bootstrap (2000 resamples) for the roadside stations; hour bootstrap for the vehicle.
 
-Inputs: norway_results.pkl (21_norway_cv_final.py), cv_full.pkl (14_final_cv.py, Sweden), metnordic_roadside.parquet
+Inputs: norway_results.pkl (11_norway.py), cv_full.pkl (14_final_cv.py, Sweden), metnordic_roadside.parquet
 (25_metnordic_roadside.py, optional), vehicle_validation_rows.parquet (12_vehicle_norway.py).
 """
 import os
@@ -31,19 +31,29 @@ PAIRS = [("corrected", "nearest station", "corr"), ("corrected", "nearest road s
          ("corrected", "rescaled nearest", "mae"), ("corrected", "nearest station", "mae"), ("calibrated", "corrected", "mae"),
          ("corrected", "nearest road station", "skill"), ("corrected", "rescaled nearest", "skill"),
          ("corrected", "MET Nordic", "mae"), ("corrected", "MET Nordic", "skill"), ("corrected", "MET Nordic", "corr"),
-         ("corrected", "no wind", "strong_mae")]
+         ("corrected", "MET Nordic, rescaled", "mae"), ("corrected", "MET Nordic, rescaled", "skill"), ("corrected", "MET Nordic, rescaled", "corr"),
+         ("MET Nordic + exposure", "MET Nordic, rescaled", "mae"), ("MET Nordic + exposure", "MET Nordic, rescaled", "skill"),
+         ("MET Nordic + exposure", "corrected", "mae"), ("MET Nordic + exposure", "corrected", "skill"),
+         ("corrected", "no wind", "strong_mae"), ("corrected", "no wind", "cond_mae")]
 OUT = {}
 
 for country in ("Norway", "Sweden"):
-    P, O, blk, D, mn, z_road = assess.load_country(country, NO, SE, DNO)
-    ests, wq, info = assess.build_estimators(P, O, blk, D, mn)
+    P, O, blk, D, mn, z_road, feats = assess.load_country(country, NO, SE, DNO)
+    ests, wq, info = assess.build_estimators(P, O, blk, D, mn, feats)
+    # windy hours, defined from information available to every estimator: the regional wind of the reference network
+    # (mean over roadside stations of the nearest-station wind) in its upper quartile
+    reg = np.nanmean(P["U0n"].astype(float), 1)
+    windy = (reg >= np.nanpercentile(reg, 75))[:, None] * np.ones(P["U0n"].shape, bool)
     ws, road = O["ws"].astype(float), np.asarray(O["road"], float)
+    if country == "Norway" and (NO / "notree_NO.pkl").exists():          # 30_norway_notree.py: model without T100
+        Pn = pickle.load(open(NO / "notree_NO.pkl", "rb"))["pred"]
+        ests["corrected, no T100"] = (Pn["U"].astype(float), Pn["wdm"].astype(float))
     if country == "Sweden":                       # 287 h: the 2000-h threshold does not apply, keep the 50 % rule
         _, ok_se, cov, _ = assess.direction_coverage(ws, O["wd"].astype(float), min_hours=100)
         info["dir_ok"], info["coverage"] = ok_se, cov
     dir_ok = info["dir_ok"]
     fh = physics.height_factor(Z_VEH, z_road, 0.03)
-    main = {k: v for k, v in ests.items() if k != "MET Nordic"}
+    main = {k: v for k, v in ests.items() if not k.startswith("MET Nordic")}
     main["no wind"] = (0 * ws, 0 * ws)
     ok = np.isfinite(ws) & np.isfinite(wq) & np.isfinite(road)[None, :] & dir_ok[None, :]
     for k, (u, d) in main.items():
@@ -52,7 +62,7 @@ for country in ("Norway", "Sweden"):
     o = dict(info=info, fh=fh, n_station=int(dir_ok.sum()), n_hours=int(ok.sum()), names=O.get("name"), ids=O["ids"])
     for model, speeds in (("vecto", (60, 70, 80, 90)), ("model1", (80,))):
         for v_kmh in speeds:
-            S = assess.station_sums(ws, wq, road, main, ok, fh, model=model, v=v_kmh / 3.6, keep=dir_ok)
+            S = assess.station_sums(ws, wq, road, main, ok, fh, model=model, v=v_kmh / 3.6, keep=dir_ok, cond=windy)
             if v_kmh == 80:
                 o[(model, v_kmh)] = assess.bootstrap(S, pairs=PAIRS); o[(model, v_kmh)]["sums"] = S
             else:
@@ -61,9 +71,12 @@ for country in ("Norway", "Sweden"):
             print(country, model, v_kmh, "E0 %.1f penalty %.1f%%" % (S["E0"], pt["pen_mean"]),
                   {k: (round(x["mae"], 2), round(x["skill"], 2), round(x["corr"], 2)) for k, x in pt.items() if isinstance(x, dict)}, flush=True)
     if mn is not None:                            # the MET Nordic hours (every third hour), all estimators on them
-        em = dict(main); em["MET Nordic"] = mn
+        em = dict(main)
         okm = ok & np.isfinite(mn[0]) & np.isfinite(mn[1])
-        S = assess.station_sums(ws, wq, road, em, okm, fh, keep=dir_ok)
+        for k in ("MET Nordic", "MET Nordic, rescaled", "MET Nordic + exposure"):
+            if k in ests:
+                em[k] = ests[k]; okm &= np.isfinite(ests[k][0])
+        S = assess.station_sums(ws, wq, road, em, okm, fh, keep=dir_ok, cond=windy)
         o["metnordic_hours"] = assess.bootstrap(S, pairs=PAIRS); o["metnordic_hours"]["sums"] = S
         o["metnordic_n_hours"] = int(okm.sum())
         pt = o["metnordic_hours"]["point"]
@@ -101,6 +114,10 @@ for country in ("Norway", "Sweden"):
     for ti in (0.15, 0.3):
         band[f"TI {ti}"] = pen(fh, ti=ti)
     o["band"] = band
+    o["band_skill"] = {}
+    for lab, fac in (("no reduction", 1.0), ("z0 0.3 d 2", np.log((Z_VEH - 2) / 0.3) / np.log((z_road - 2) / 0.3))):
+        pt_ = assess.energy_metrics(assess.station_sums(ws, wq, road, main, ok, fac, keep=dir_ok))
+        o["band_skill"][lab] = {k: (v["skill"], v["corr"]) for k, v in pt_.items() if isinstance(v, dict)}
     print(country, "band", {k: round(v, 1) for k, v in band.items()}, flush=True)
     b_ = []
     for k in (0.0, 180.0):

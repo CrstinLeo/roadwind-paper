@@ -68,7 +68,7 @@ def fig_map_norway():
     tr_ = S[S.grp == "SVV"].set_index("id").reindex(R["meta"]["trv"])
     sc = ax.scatter(tr_.x, tr_.y, c=cv_, cmap="viridis_r", vmin=0.5, vmax=2.5, s=30, edgecolor="white", linewidth=0.5, zorder=4,
                     label="Statens vegvesen road weather station")
-    rf = S[S.grp.isin(["MET", "AVINOR"])]
+    rf = S[S.grp.isin(["MET", "AVINOR"]) & S.id.isin(R["site_c"].dropna(how="all").index)]     # reference stations with data
     ax.scatter(rf.x, rf.y, marker="s", s=34, color=ORANGE, edgecolor=INK, linewidth=0.6, zorder=5, label="MET Norway / Avinor station")
     for lat_ in (62.0, 62.5, 63.0, 63.5, 64.0, 64.5):                         # graticule with labels
         xs_, ys_ = T.transform(np.linspace(4, 15, 200), np.full(200, lat_))
