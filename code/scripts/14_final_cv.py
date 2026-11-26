@@ -26,7 +26,8 @@ v = 80 / 3.6
 dm, pm = drag.station_errors(E.tws, E.twd, p["U"], p["wdm"], E.road, v)
 dr, pr = drag.station_errors(E.tws, E.twd, p["U0n"], p["wd0n"], E.road, v)
 out = dict(cv=c, cv0=c0, folds_b=np.array(folds_b), folds_d=np.array(folds_d), coef=dict(b=full["b"], d=full["d"], smear=full["smear"]),
-           drag=dict(model_station=dm, raw_station=dr, model_pooled=pm, raw_pooled=pr, v=v), n_trv=len(E.TM), hours=len(E.H))
+           drag=dict(model_station=dm, raw_station=dr, model_pooled=pm, raw_pooled=pr, v=v), n_trv=len(E.TM), hours=len(E.H),
+           pred=p, obs=dict(ws=E.tws.astype(np.float32), wd=E.twd.astype(np.float32), road=E.road))
 pickle.dump(out, open(OUT / "cv_full.pkl", "wb"))
 print(country, "CV final mean/median", np.nanmean(c["mae"]).round(3), np.nanmedian(c["mae"]).round(3), "| ref6", np.nanmean(c0["mae"]).round(3),
       "| raw", np.nanmedian(c["mae_raw"]).round(3), "| drag |err| median model", np.nanmedian(dm).round(3), "raw", np.nanmedian(dr).round(3),

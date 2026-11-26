@@ -2,7 +2,8 @@
 
 Pair level (one TrV station x one SMHI station), per correction step L in U0..U4:
   mae_L    mean |U_L - U_trv| over all hours with both values
-  bias_L   exp(mean ln(U_trv / U_L)) - 1 over hours with U0 >= 2 m/s (geometric; negative = prediction too high)
+  rbias_L  mean(U_L) / mean(U_trv) - 1 over all hours with both values (ratio of means; positive = prediction too high)
+  bias_L   exp(mean ln(U_trv / U_L)) - 1 over hours with U0 >= 2 m/s (geometric; negative = prediction too high; legacy)
   mb_L     mean (U_L - U_trv)            (arithmetic, m/s)
   r, r4    correlation of U0 / U4 with U_trv
   dir_raw, dir_mod   mean |angle error| of SMHI / model direction, hours with both speeds >= 2 m/s
@@ -33,6 +34,8 @@ def pair_metrics(D: pd.DataFrame) -> pd.DataFrame:
         for L in LEVELS:
             out[f"mae_{L}"] = float(np.mean(np.abs(g[L] - g.ws)))
             out[f"mb_{L}"] = float(np.mean(g[L] - g.ws))
+            okL = g[L].notna()
+            out[f"rbias_{L}"] = float(g[L][okL].mean() / g.ws[okL].mean() - 1) if okL.sum() > 10 else np.nan
             out[f"bias_{L}"] = float(np.exp(np.mean(np.log(g.ws[m] / g[L][m]))) - 1) if m.sum() > 10 else np.nan
         out["r"] = float(np.corrcoef(g.U0, g.ws)[0, 1]) if g.U0.std() > 0 else np.nan
         ok4 = g.U4.notna()
@@ -48,7 +51,7 @@ def ladder(P: pd.DataFrame, max_km: float | None = 80.0) -> pd.DataFrame:
     """median over pairs (within max_km) of every correction step"""
     if max_km is not None:
         P = P[P.dist <= max_km]
-    return pd.DataFrame([dict(step=LEVEL_NAMES[L], mae=P[f"mae_{L}"].median(), bias=P[f"bias_{L}"].median(),
+    return pd.DataFrame([dict(step=LEVEL_NAMES[L], mae=P[f"mae_{L}"].median(), bias=P[f"bias_{L}"].median(), rbias=P[f"rbias_{L}"].median(),
                               mean_error=P[f"mb_{L}"].median()) for L in LEVELS])
 
 

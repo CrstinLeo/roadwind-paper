@@ -386,6 +386,7 @@ def ladder(engine: "Engine", sp: Spec, max_km: float = 80.0) -> pd.DataFrame:
             row[f"mae_{k}"] = float(np.mean(np.abs(x[ok] - ws[ok, i]))) if ok.sum() > 50 else np.nan
             mm = m & np.isfinite(x) & (x > 0)
             row[f"bias_{k}"] = float(np.exp(np.mean(np.log(ws[mm, i] / x[mm]))) - 1) if mm.sum() > 50 else np.nan
+            row[f"rbias_{k}"] = float(np.mean(x[ok]) / np.mean(ws[ok, i]) - 1) if ok.sum() > 50 else np.nan   # ratio of means
         rows.append(row)
     return pd.DataFrame(rows)
 

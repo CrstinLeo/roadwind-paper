@@ -110,13 +110,14 @@ def fig_vehicle():
 def fig_ladder_both():
     """correction ladder, pairs <= 80 km, Norway (engine ladder) and Sweden (pipeline pair metrics)"""
     SEres = pickle.load(open(Path(os.environ.get("SWW_SE_OUT", "/tmp/sww8")) / "result.pkl", "rb"))
-    L = R["ladder"]; L = L[L.dist <= 80]
+    XL = OUT / "norway_extra.pkl"                     # 16_norway_ladder_terrain.py (ratio-of-means bias)
+    L = pickle.load(open(XL, "rb"))["ladder"] if XL.exists() else R["ladder"]; L = L[L.dist <= 80]
     P = SEres.P[SEres.P.dist <= 80]
     steps = ["U0", "U1", "U2", "U3", "U4"]
     lab = ["raw", "height", "roughness", "site\nfactor", "roadside\nexposure"]
     fig, ax = plt.subplots(1, 2, figsize=(W2, 2.5))
     for D, col, name in ((L, ORANGE, "Norway"), (P, BLUE, "Sweden")):
-        for a, k in ((ax[0], "mae"), (ax[1], "bias")):
+        for a, k in ((ax[0], "mae"), (ax[1], "rbias")):
             q = np.array([D[f"{k}_{s}"].quantile([0.25, 0.5, 0.75]).values for s in steps])
             x = np.arange(5) + (-0.06 if name == "Norway" else 0.06)
             a.fill_between(x, q[:, 0], q[:, 2], color=col, alpha=0.12, lw=0)
@@ -124,7 +125,7 @@ def fig_ladder_both():
     for a in ax:
         a.set_xticks(range(5)); a.set_xticklabels(lab)
     ax[0].set_ylabel("MAE [m s$^{-1}$]"); ax[0].set_ylim(bottom=0); ax[0].legend(frameon=False)
-    ax[1].set_ylabel("bias $U_\\mathrm{road}/U - 1$"); ax[1].axhline(0, color=MUTED, lw=0.8)
+    ax[1].set_ylabel("relative bias $\\overline{U}/\\overline{U}_\\mathrm{road} - 1$"); ax[1].axhline(0, color=MUTED, lw=0.8)
     ax[0].set_title("(a) absolute error", loc="left"); ax[1].set_title("(b) bias", loc="left")
     fig.tight_layout(); save(fig, "fig03_correction_ladder")
 
