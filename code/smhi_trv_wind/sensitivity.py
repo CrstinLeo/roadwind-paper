@@ -50,6 +50,7 @@ class Spec:
     dir_km: float | None = None
     dir_power: float | None = None      # weight exponent for the direction combination (default: power)
     dir_tree: str | None = None         # tree feature of the direction model (default: tree)
+    dir_open: bool = False              # add d2 sin(2 alpha) without tree scaling (terrain channelling at open sites)
     roughness: bool = True              # False: skip step 2 (z0 = 0.03 everywhere)
     learner: str = "ols"                # ols | gbm (upper-bound check, station-grouped folds)
 
@@ -213,14 +214,17 @@ class Engine:
         Xf, yf, jf = X[fit], y[fit], np.broadcast_to(pj, y.shape)[fit]
         XtX = np.zeros((n_t, p, p)); Xty = np.zeros((n_t, p))
         np.add.at(XtX, jf, Xf[:, :, None] * Xf[:, None, :]); np.add.at(Xty, jf, Xf * yf[:, None])
-        Xd = np.stack([np.ones_like(s2t), np.nan_to_num(s2t)], -1)
+        dcols = [np.ones_like(s2t), np.nan_to_num(s2t)]
+        if sp.dir_open:
+            dcols.append(np.nan_to_num(np.sin(np.radians(2 * alpha))))
+        Xd = np.stack(dcols, -1); q = Xd.shape[-1]
         Xdf, ddf, jdf = Xd[fitd], dd[fitd], np.broadcast_to(pj, dd.shape)[fitd]
-        DtD = np.zeros((n_t, 2, 2)); Dty = np.zeros((n_t, 2))
+        DtD = np.zeros((n_t, q, q)); Dty = np.zeros((n_t, q))
         np.add.at(DtD, jdf, Xdf[:, :, None] * Xdf[:, None, :]); np.add.at(Dty, jdf, Xdf * ddf[:, None])
         SX, Sy, SD, Sd = XtX.sum(0), Xty.sum(0), DtD.sum(0), Dty.sum(0)
         if fixed is None:
             B = np.stack([np.linalg.solve(SX - XtX[j] + 1e-9 * np.eye(p), Sy - Xty[j]) for j in range(n_t)])
-            Bd = np.stack([np.linalg.solve(SD - DtD[j] + 1e-9 * np.eye(2), Sd - Dty[j]) for j in range(n_t)])
+            Bd = np.stack([np.linalg.solve(SD - DtD[j] + 1e-9 * np.eye(q), Sd - Dty[j]) for j in range(n_t)])
             b_all = np.linalg.solve(SX, Sy); d_all = np.linalg.solve(SD, Sd)
             smear = float(np.mean(np.exp(yf - Xf @ b_all)))
         else:
@@ -271,8 +275,13 @@ class Engine:
         su = np.where(okd, np.sin(np.radians(wd4)), 0) @ Wd; cv = np.where(okd, np.cos(np.radians(wd4)), 0) @ Wd
         wdm = np.degrees(np.arctan2(su, cv)) % 360
         # nearest raw baseline
-        near = np.array([np.where(pj == j)[0][np.argmin(self.pd[pj == j])] for j in range(n_t)])
-        U0n = U0[:, near] * physics.height_factor(self.cfg.z_trv, self.cfg.z_smhi, self.cfg.z0_open); wd0n = wd_s[:, near]
+        # nearest reference station WITH DATA in each hour (a station without data falls back to the next nearest)
+        U0n = np.full((U0.shape[0], n_t), np.nan); wd0n = np.full((U0.shape[0], n_t), np.nan)
+        for j in range(n_t):
+            for i in np.where(pj == j)[0][np.argsort(self.pd[pj == j])]:
+                fill = np.isnan(U0n[:, j]) & np.isfinite(U0[:, i])
+                U0n[fill, j] = U0[fill, i]; wd0n[fill, j] = wd_s[fill, i]
+        U0n = U0n * physics.height_factor(self.cfg.z_trv, self.cfg.z_smhi, self.cfg.z0_open)
         out = dict(spec=sp, b=b_all, d=d_all, smear=smear, n_fit=int(fit.sum()))
         periods = [("A", self.A), ("B", ~self.A)] + [(f"B:{g}", ~self.A & m) for g, m in (groups or {}).items()]
         for name, per in periods:
