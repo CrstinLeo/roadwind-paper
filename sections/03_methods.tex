@@ -68,10 +68,18 @@ To test whether the fitted model can be used in a region without roadside statio
 \subsection{Application at vehicle height}
 For the NOR-XWIND segments, the model fitted on the Norwegian roadside stations is applied with the segment's own features, the roughness conversion to $z_j=\SI{3.4}{m}$ and the reference observations of the measurement hour. It is compared with the nearest reference station and the nearest road weather station, both converted to \SI{3.4}{m} with the logarithmic profile over open terrain, and with the MET Nordic analysis at \SI{10}{m}, converted in the same way.
 
-\subsection{Air drag}
-Wind errors are propagated to the air drag of a tractor--semitrailer with Model~1 of \citet{Askerdal2024crosswind},
+\subsection{Air drag and energy}
+\label{sec:energy-method}
+Wind is propagated to the air drag of a tractor--semitrailer with
 \begin{align}
-F &= \tfrac12 \rho\, C_dA(\theta)\, v_a^2, & C_dA(\theta) &= c_1 \cos^2\theta\,(A_f\cos\theta + A_s\sin\theta),\\
-v_a^2 &= (v_v+v_{wx})^2+v_{wy}^2, & \theta &= \arctan\frac{|v_{wy}|}{v_v+v_{wx}},
+F &= \tfrac12 \rho\, C_dA(\beta)\, v_a^2, & v_a^2 &= (v_v+v_{wx})^2+v_{wy}^2, & \beta &= \arctan\frac{|v_{wy}|}{v_v+v_{wx}},
+\label{eq:drag}
 \end{align}
-with the frontal and side areas $A_f=\SI{10.3}{m^2}$ and $A_s=\SI{57.6}{m^2}$ of their vehicle, the vehicle speed $v_v=\SI{80}{km.h^{-1}}$, the air speed $v_a$ and the attack angle $\theta$, and the head- and crosswind components $v_{wx}$ (positive against the direction of travel) and $v_{wy}$. The relative drag error $F(\hat{v}_w)/F(v_w)-1$ does not depend on $c_1$ or $\rho$. At roadside stations it is evaluated with the observed roadside wind as reference, for both driving directions along the road axis, and summarised by the median absolute error over hours and directions; for the vehicle segments it is evaluated along the measured heading.
+with the vehicle speed $v_v$, the head- and crosswind components $v_{wx}$ (positive against the direction of travel) and $v_{wy}$, the air speed $v_a$, the yaw angle $\beta$ and $\rho=\SI{1.25}{kg.m^{-3}}$. The drag area at zero yaw is $C_dA(0)=\SI{5.8}{m^2}$, the typical value certified for EU 4$\times$2 long-haul tractor--trailers \citep{ICCT_VECTO}. Its yaw dependence follows the generic crosswind correction of the EU certification tool VECTO for tractor--semitrailers \citep{VECTO},
+\begin{equation}
+C_dA(\beta) = C_dA(0) + a_1\beta + a_2\beta^2 + a_3\beta^3,
+\label{eq:vecto}
+\end{equation}
+with $a_1=0.030042$, $a_2=0.040817$, $a_3=-0.002130$, $\beta$ in degrees and $C_dA$ in \si{m^2}, held constant beyond its maximum at $\beta=\ang{13.1}$ (a 45\,\% increase). As an upper bound of the crosswind sensitivity we also use Model~1 of \citet{Askerdal2024crosswind}, $C_dA(\beta)\propto\cos^2\beta\,(A_f\cos\beta+A_s\sin\beta)$ with $A_f=\SI{10.3}{m^2}$ and $A_s=\SI{57.6}{m^2}$, scaled to the same $C_dA(0)$; it nearly doubles the drag area at \ang{10} yaw, where Eq.~\eqref{eq:vecto} gives \SI{39}{\percent}.
+
+The energy needed to overcome air drag per distance equals the force; we report it in \si{kWh} per \SI{100}{km} at the wheel. At each roadside station and hour a vehicle is driven in both directions along the road axis at \SI{80}{km.h^{-1}} (sensitivity: 60--\SI{90}{km.h^{-1}}); a round trip is the mean of both directions. All winds---observed, estimated and from the nearest station---are referred to vehicle height (\SI{3.4}{m}) with the same open-terrain factor, so that the comparison of estimators is not affected by this conversion. We define the wind penalty as the air-drag energy with wind minus that in still air, relative to the still-air energy, and evaluate three estimates: no wind (common practice in range prediction), the nearest reference station, and the corrected estimate. Metrics are the mean absolute error of the hourly energy, its skill score $1-\mathrm{MSE}/\mathrm{MSE}_\text{no wind}$, the long-term penalty of each road (mean over all hours and both directions), and the error in strong-wind hours, defined as hours in which the observed wind changes the air-drag energy by at least \SI{10}{\percent}. The relative drag-force error $|F(\hat v_w)/F(v_w)-1|$ is also reported per station (median over hours and directions). For the vehicle segments, the energy is evaluated along the measured heading.

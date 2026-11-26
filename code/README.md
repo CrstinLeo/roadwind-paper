@@ -166,6 +166,7 @@ cv(E, RECOMMENDED)["mae"].mean()            # 0.698 m/s（第 6 轮模型 0.740�
 - 挪威（主研究区）：`Settings.norway()`，数据由 `analysis/norway/` 的脚本下载（Frost API、Kartverket DOM−DTM、ESA WorldCover），`scripts/11_norway.py`（校正阶梯、按季节分块交叉验证、敏感性、两国互用系数）、`12_vehicle_norway.py`（NOR-XWIND 车辆高度验证）、`16_norway_ladder_terrain.py`（校正阶梯的均值比偏差、以最终模型为基准的地形指标检验）、`13_norway_figures.py`。
 - 瑞典：`scripts/14_final_cv.py`（最终模型交叉验证、风阻误差），`09_paper_figures.py`。
 - 论文数字和表格：`scripts/15_paper_numbers.py` → `sections/generated/`（`10_paper_tables.py` 为单国版，已被取代）；图形摘要：`scripts/17_graphical_abstract.py`；机理诊断 `18_mechanism_data.py`（偏残差、风向偏转）、风向模型变体 `20_direction_variant.py`、挪威最终交叉验证重算 `21_norway_cv_final.py`、新增图 `19_figures_v2.py`。
+- 风阻能耗：`scripts/22_energy.py`。风阻主模型改为 VECTO 通用侧风修正（C_dA(0)=5.8 m²），Askerdal 模型 1 作为侧风敏感性的上限（`drag.py`）。
 - 2026-11-26 修正："最近站"基线改为每小时取有数据的最近参照站（之前 3 个挪威路边站的最近站在检验期无数据，原始误差被记成 0）。
 - 偏差统一定义为“估计均值/观测均值 − 1”（全部小时，正值 = 估计偏大）；旧的几何偏差（对数均值，只取部分小时）会把选样效应误当成偏差，已不再用于论文。
 - 最终模型（两国通用，`sensitivity.RECOMMENDED` 与 `Settings()` 默认值一致）：每个参照站一个站点因子；近处树木 100 m（上风向 ±22.5°）；1 km 内各方向的森林覆盖率；ln(x/h)；ln U_net；全部参照站按 1/d^1.5 合并风速；风向 60 km、1/d。

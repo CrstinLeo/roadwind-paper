@@ -1,6 +1,6 @@
 # roadwind-paper
 
-Paper: *From weather stations to the roadside: explaining and correcting near-surface wind with open geodata in Norway and Sweden, for vehicle air-drag estimation* (target: Journal of Wind Engineering & Industrial Aerodynamics, Elsevier).
+Paper: *What the wind costs a truck: correcting weather-station wind to the roadside with open geodata for heavy-vehicle air-drag energy* (target: Journal of Wind Engineering & Industrial Aerodynamics, Elsevier).
 
 ## Layout
 
@@ -21,7 +21,7 @@ Norway (`SWW_DATA` = Norwegian data root, `SWW_OUT` = output folder):
 
 Sweden (`SWW_DATA` = Swedish data root): `04_run_model.py` (pipeline, map), `09_paper_figures.py` (pipeline result `result.pkl` and Swedish figures), `14_final_cv.py` (`SWW_COUNTRY=SE`), `18_mechanism_data.py` (`SWW_COUNTRY=SE`), `20_direction_variant.py SE`, scans `06`–`08`.
 
-Both: `15_paper_numbers.py` (`SWW_NO_OUT`, `SWW_SE_OUT`) → `sections/generated/`, then `19_figures_v2.py` (concept, mechanisms, error structure, time series, site factors, vehicle) and `17_graphical_abstract.py`.
+Both: `22_energy.py` (air-drag energy, VECTO crosswind correction and Askerdal Model 1) → `15_paper_numbers.py` (`SWW_NO_OUT`, `SWW_SE_OUT`) → `sections/generated/`, then `19_figures_v2.py` (concept, mechanisms, error structure, time series, site factors, vehicle) and `17_graphical_abstract.py`.
 
 ## Data
 
