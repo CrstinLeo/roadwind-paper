@@ -37,14 +37,23 @@ m = R["meta"]
 N.update(noHours=f"{m['hours']:,}".replace(",", "\\,"), noTrv=m["n_trv"], noRef=m["n_ref"], noPairs=m["n_pairs"],
          noStart=m["start"][:10], noEnd=m["end"][:10], seHours=SEcv["hours"], seTrv=SEcv["n_trv"], seRef=SEres.smhi.shape[0])
 
+# share of Norwegian hourly speeds removed by the quality control (all Frost stations of the region, raw download)
+import glob
+from smhi_trv_wind.data import frost
+_raw = pd.concat([pd.read_parquet(p_) for p_ in sorted(glob.glob(str(Path(os.environ.get("SWW_NO_DATA", "/home/claude/no")) / "raw" / "*.parquet")))])
+_raw = _raw.rename(columns={"wind_speed": "ws", "wind_from_direction": "wd"}).drop_duplicates(["id", "time"]).sort_values(["id", "time"])
+_n0 = int(_raw.ws.notna().sum()); _q = frost.qc(_raw)
+N["noQcPct"] = f"{100 * (1 - _q.ws.notna().sum() / _n0):.1f}"
+
 # ---------------- ladders (pairs <= 80 km)
-L = R["ladder"]; L = L[L.dist <= 80]
+X = pickle.load(open(NO / "norway_extra.pkl", "rb"))          # 16_norway_ladder_terrain.py
+L = X["ladder"]; L = L[L.dist <= 80]
 N["noPairsEighty"] = len(L)
 for k, s in (("Raw", "U0"), ("Rough", "U2"), ("Site", "U3"), ("Expo", "U4")):
-    N[f"noLad{k}"] = f2(L[f"mae_{s}"].median()); N[f"noLad{k}Bias"] = f"{100 * L[f'bias_{s}'].median():+.0f}"
+    N[f"noLad{k}"] = f2(L[f"mae_{s}"].median()); N[f"noLad{k}Bias"] = f"{100 * L[f'rbias_{s}'].median():+.0f}"
 lad = evaluate.ladder(SEres.P)
 for i, k in enumerate(["Raw", "Height", "Rough", "Site", "Expo"]):
-    N[f"seLad{k}"] = f2(lad.mae.iloc[i]); N[f"seLad{k}Bias"] = f"{100 * lad.bias.iloc[i]:+.0f}"
+    N[f"seLad{k}"] = f2(lad.mae.iloc[i]); N[f"seLad{k}Bias"] = f"{100 * lad.rbias.iloc[i]:+.0f}"
 N["sePairsEighty"] = int((SEres.P.dist <= 80).sum())
 
 # ---------------- cross-validation
@@ -64,6 +73,18 @@ N.update(seCvMed=f2(np.nanmedian(cs["mae"])), seCvMean=f2(np.nanmean(cs["mae"]))
          seCvDir=f"{np.nanmedian(cs['dir']):.0f}", seCvDirRaw=f"{np.nanmedian(cs['dir_raw']):.0f}",
          seCvBias=f"{100 * (np.exp(np.nanmedian(cs['bias_log'])) - 1):.0f}", seRefSixDiff=f"{-d:.3f}", seRefSixSE=f"{s:.3f}")
 
+# unconditional bias of the cross-validated estimate: median over stations of mean(U)/mean(U_road) - 1, and the
+# conditional ratio mean(U_road)/mean(U) - 1 for hours with an estimate >= 8 m/s (pooled)
+def rbias(U, ws):
+    m = np.isfinite(U) & np.isfinite(ws)
+    st = np.nansum(np.where(m, U, np.nan), 0) / np.nansum(np.where(m, ws, np.nan), 0) - 1
+    h = m & (U >= 8)
+    return np.nanmedian(st), ws[h].sum() / U[h].sum() - 1
+for pre, P_, O_ in (("no", R["pred_final"], R["obs"]), ("se", SEcv["pred"], SEcv["obs"])):
+    b, hb = rbias(P_["U"].astype(float), O_["ws"].astype(float))
+    assert hb < 0, "text says 'lower than estimated'"
+    N[f"{pre}CvRbias"] = f"{100 * b:+.0f}"; N[f"{pre}CvHighObs"] = f"{-100 * hb:.0f}"
+
 # ---------------- site factors (Norway)
 sf = np.exp(R["site_c"].mean(1))
 N.update(noSfMin=f2(sf.min()), noSfMax=f2(sf.max()))
@@ -79,6 +100,42 @@ for key, (g, l) in {"KmTwenty": ("km", "20 km"), "KmForty": ("km", "40 km"), "Km
                     "Inter": ("variants", "+ lnU x tree"), "TreeTwoHundred": ("tree_R", "200 m"), "TreeFifty": ("tree_R", "50 m"),
                     "PowOne": ("power", "1.0"), "PowTwo": ("power", "2.0")}.items():
     N[f"no{key}"], N[f"no{key}SE"] = scan(g, l)
+
+N["noTreeFiveHundred"], N["noTreeFiveHundredSE"] = scan("tree_R", "500 m")
+N["noKmOneTwenty"], N["noKmOneTwentySE"] = scan("km", "120 km")
+
+# ---------------- terrain indices (Norway, final model, 16_norway_ladder_terrain.py)
+T = X["terrain"]; dts = [paired(v["mae"], T["final"]["mae"]) for k, v in T.items() if k != "final"]
+N.update(noTerrMin=f"{min(d for d, _ in dts):+.3f}", noTerrMax=f"{max(d for d, _ in dts):+.3f}",
+         noTerrSEmax=f"{max(s for _, s in dts):.3f}", noTerrN=len(dts))
+
+# ---------------- Sweden scans (relative to the round-6 reference configuration, 08_sensitivity)
+SS = pickle.load(open(SE / "sensitivity_cv.pkl", "rb"))["res"]
+from smhi_trv_wind.sensitivity import Spec
+def se_d(g, l):
+    base_ = [v for k, v in SS.items() if k[0] == g and v["spec"] == Spec()]
+    b_ = base_[0]["r"]["mae"] if base_ else SS[(g, "±0 m")]["r"]["mae"]
+    return paired(SS[(g, l)]["r"]["mae"], b_)
+phys = [abs(se_d(g, l)[0]) for g in ("z_blend", "c_tree", "L_smhi", "L_trv") for (gg, l) in SS if gg == g]
+N["sePhysMax"] = f"{max(phys):.3f}"
+d_, s_ = se_d("site", "none"); N["seSiteNone"], N["seSiteNoneSE"] = f"{d_:+.3f}", f"{s_:.3f}"
+for lab, key in (("±100 m", "Two"), ("±250 m", "Five"), ("±500 m", "Thousand")):
+    d_, s_ = se_d("road_window", lab); N[f"seSeg{key}"], N[f"seSeg{key}SE"] = f"{d_:+.3f}", f"{s_:.3f}"
+
+# ---------------- along-road correlation of the exposure features (both countries)
+offs = (100, 250, 1000)
+cors = {o: [] for o in offs}
+for path in (Path(os.environ.get("SWW_SE_DATA", "/home/claude/se")) / "features_variants.parquet",
+             Path(os.environ.get("SWW_NO_DATA", "/home/claude/no")) / "features_variants.parquet"):
+    Vf = pd.read_parquet(path); Vf = Vf[Vf.src == "trv"]
+    for col in ("tree", "lnz0"):
+        for o in offs:
+            for sg in (o, -o):
+                a, b = Vf[f"along_{col}_s0"].values, Vf[f"along_{col}_s{sg}"].values
+                ok = np.isfinite(a) & np.isfinite(b)
+                cors[o].append(np.corrcoef(a[ok], b[ok])[0, 1])
+for o, k in zip(offs, ("Hundred", "TwoFifty", "Km")):
+    N[f"along{k}Min"], N[f"along{k}Max"] = f"{min(cors[o]):.2f}", f"{max(cors[o]):.2f}"
 
 # ---------------- transfer
 N.update(seWithNo=f2(np.nanmedian(R["se_with_no_coef"]["mae"])), noWithSe=f2(np.nanmedian((R["no_with_se_coef"]["B"] if "B" in R["no_with_se_coef"] else R["no_with_se_coef"])["mae"])))
@@ -107,9 +164,20 @@ for c_, dcol, lab in est:
     rows.append(out)
     N[f"veh{c_.replace('_', '').title()}"] = out[3]
     N[f"vehDrag{c_.replace('_', '').title()}"] = out[5]
-N.update(vehN=len(V), vehNDovre=int((V.site == "dovre").sum()), vehNFroya=int((V.site == "froya").sum()))
+N.update(vehN=len(V), vehNDovre=int((V.site == "dovre").sum()), vehNFroya=int((V.site == "froya").sum()),
+         vehHours=int(V.t.dt.floor("h").nunique()), vehHoursDovre=int(V[V.site == "dovre"].t.dt.floor("h").nunique()),
+         vehHoursFroya=int(V[V.site == "froya"].t.dt.floor("h").nunique()),
+         vehFroyaKmMin=f"{min(V[V.site == 'froya'].ref_km.min(), V[V.site == 'froya'].road_km.min()):.0f}")
+# speed vs direction: drag error with one of the two components replaced by the measurement or by MET Nordic
+for key, u, d in (("ModelSpeedMnDir", "model", "metnordic_dir"), ("ModelSpeedTrueDir", "model", "dir_veh"),
+                  ("MnSpeedTrueDir", "metnordic", "dir_veh"), ("TrueSpeedModelDir", "w_veh", "model_dir"), ("MnSpeedModelDir", "metnordic", "model_dir")):
+    e = drag.relative_error(80 / 3.6, V.w_veh.values, V.dir_veh.values, V[u].values, V[d].values, V.heading.values)
+    N[f"vehDrag{key}"] = f"{100 * np.nanmedian(np.abs(e)):.0f}"
+for c_ in ("model", "metnordic", "ref_raw", "road_raw"):          # overall speed bias over the hours of Dovre, 31 Oct evening
+    g = V[(V.site == "dovre") & (V.t.dt.day == 31)]
+    N[f"vehDovreEve{c_.replace('_', '').title()}"] = f"{100 * (g[c_].mean() / g.w_veh.mean() - 1):+.0f}"
 with open(GEN / "tab_vehicle.tex", "w") as f:
-    f.write("\\begin{tabular}{p{0.34\\textwidth}ccccc}\n\\toprule\n & \\multicolumn{3}{c}{wind-speed MAE [m\\,s$^{-1}$]} & direction & drag error \\\\\n")
+    f.write("\\begin{tabular}{>{\\raggedright\\arraybackslash}p{0.3\\textwidth}ccccc}\n\\toprule\n & \\multicolumn{3}{c}{wind-speed MAE [m\\,s$^{-1}$]} & direction & drag error \\\\\n")
     f.write("Estimate & Dovre & Frøya & all & MAE [deg] & median [\\%] \\\\\n\\midrule\n")
     for r in rows:
         f.write(" & ".join(r) + " \\\\\n")
@@ -122,28 +190,33 @@ no_v = np.r_[R["coef"]["b"], R["coef"]["d"]]; no_f = R["coef_folds"]
 se_v = np.r_[SEcv["coef"]["b"], SEcv["coef"]["d"]]; se_f = np.c_[SEcv["folds_b"], SEcv["folds_d"]]
 with open(GEN / "tab_coefs.tex", "w") as f:
     f.write("\\begin{tabular}{lcccc}\n\\toprule\n & \\multicolumn{2}{c}{Norway} & \\multicolumn{2}{c}{Sweden} \\\\\n")
-    f.write("Term & estimate & block range & estimate & block range \\\\\n\\midrule\n")
+    f.write("Term & estimate & range & estimate & range \\\\\n\\midrule\n")
     for i, n_ in enumerate(names):
-        fmt = (lambda x: f"{x:+.1f}") if i >= 5 else (lambda x: f"{x:+.3f}")
+        fmt = (lambda x: f"${x:+.1f}$") if i >= 5 else (lambda x: f"${x:+.3f}$")
         f.write(f"{n_} & {fmt(no_v[i])} & {fmt(no_f[:, i].min())}\\,…\\,{fmt(no_f[:, i].max())} & {fmt(se_v[i])} & {fmt(se_f[:, i].min())}\\,…\\,{fmt(se_f[:, i].max())} \\\\\n")
     f.write("\\bottomrule\n\\end{tabular}\n")
 N.update(noSmear=f2(R["coef"]["smear"]), seSmear=f2(SEcv["coef"]["smear"]))
 
 # ---------------- skill table (both countries)
 with open(GEN / "tab_skill.tex", "w") as f:
-    f.write("\\begin{tabular}{lcccccc}\n\\toprule\n & \\multicolumn{3}{c}{Norway} & \\multicolumn{3}{c}{Sweden} \\\\\n")
+    f.write("\\begin{tabular}{>{\\raggedright\\arraybackslash}p{0.3\\textwidth}cccccc}\n\\toprule\n & \\multicolumn{3}{c}{Norway} & \\multicolumn{3}{c}{Sweden} \\\\\n")
     f.write(" & raw & model & reduction & raw & model & reduction \\\\\n\\midrule\n")
-    f.write(f"Speed MAE, median station [m\\,s$^{{-1}}$] & {N['noCvRaw']} & {N['noCvMed']} & {N['noCvRed']}\\,\\% & {N['seCvRaw']} & {N['seCvMed']} & {N['seCvRed']}\\,\\% \\\\\n")
-    f.write(f"Direction MAE, median station [deg] & {N['noCvDirRaw']} & {N['noCvDir']} & & {N['seCvDirRaw']} & {N['seCvDir']} & \\\\\n")
+    f.write(f"Speed MAE [m\\,s$^{{-1}}$] & {N['noCvRaw']} & {N['noCvMed']} & {N['noCvRed']}\\,\\% & {N['seCvRaw']} & {N['seCvMed']} & {N['seCvRed']}\\,\\% \\\\\n")
+    f.write(f"Direction MAE [deg] & {N['noCvDirRaw']} & {N['noCvDir']} & & {N['seCvDirRaw']} & {N['seCvDir']} & \\\\\n")
     f.write(f"Stations improved & & {N['noCvBetter']}/{N['noTrv']} & & & {N['seCvBetter']}/{N['seTrv']} & \\\\\n")
-    f.write(f"Drag error at 80 km\\,h$^{{-1}}$, median station [\\%] & {N['noDragRaw']} & {N['noDragModel']} & & {N['seDragRaw']} & {N['seDragModel']} & \\\\\n")
-    f.write(f"Leaf-on (May--Sep) speed MAE [m\\,s$^{{-1}}$] & {N['noOnRaw']} & {N['noOnMed']} & {N['noOnRed']}\\,\\% & & & \\\\\n")
-    f.write(f"Leaf-off (Nov--Mar) speed MAE [m\\,s$^{{-1}}$] & {N['noOffRaw']} & {N['noOffMed']} & {N['noOffRed']}\\,\\% & & & \\\\\n")
-    f.write(f"Coefficients from the other country [m\\,s$^{{-1}}$] & & {N['noWithSe']} & & & {N['seWithNo']} & \\\\\n")
+    f.write(f"Drag error [\\%] & {N['noDragRaw']} & {N['noDragModel']} & & {N['seDragRaw']} & {N['seDragModel']} & \\\\\n")
+    f.write(f"Leaf-on speed MAE [m\\,s$^{{-1}}$] & {N['noOnRaw']} & {N['noOnMed']} & {N['noOnRed']}\\,\\% & & & \\\\\n")
+    f.write(f"Leaf-off speed MAE [m\\,s$^{{-1}}$] & {N['noOffRaw']} & {N['noOffMed']} & {N['noOffRed']}\\,\\% & & & \\\\\n")
+    f.write(f"Other country's coefficients [m\\,s$^{{-1}}$] & & {N['noWithSe']} & & & {N['seWithNo']} & \\\\\n")
     f.write("\\bottomrule\n\\end{tabular}\n")
 
 with open(GEN / "numbers.tex", "w") as f:
     f.write("% generated by code/scripts/15_paper_numbers.py -- do not edit by hand\n")
     for k, v in N.items():
+        v = str(v)
+        if v in ("-0.000", "+0.000", "-0", "+0"):
+            v = v[1:]
+        if v.startswith("-"):
+            v = "$-$" + v[1:]                     # typographic minus in text mode
         f.write(f"\\newcommand{{\\{k}}}{{{v}}}\n")
 print("\n".join(f"{k} = {v}" for k, v in N.items()))
