@@ -17,11 +17,11 @@ Paper: *From weather stations to the roadside: explaining and correcting near-su
 ## Reproducing the numbers
 
 Norway (`SWW_DATA` = Norwegian data root, `SWW_OUT` = output folder):
-`11_norway.py` → `12_vehicle_norway.py` → `16_norway_ladder_terrain.py` → `13_norway_figures.py`.
+`11_norway.py` → `21_norway_cv_final.py` (final CV with the corrected nearest-station baseline) → `12_vehicle_norway.py` → `16_norway_ladder_terrain.py` → `18_mechanism_data.py` (`SWW_COUNTRY=NO`) → `20_direction_variant.py NO` → `13_norway_figures.py`.
 
-Sweden (`SWW_DATA` = Swedish data root): `04_run_model.py` (pipeline, map), `09_paper_figures.py` (pipeline result `result.pkl` and Swedish figures), `14_final_cv.py` (`SWW_COUNTRY=SE`), scans `06`–`08`.
+Sweden (`SWW_DATA` = Swedish data root): `04_run_model.py` (pipeline, map), `09_paper_figures.py` (pipeline result `result.pkl` and Swedish figures), `14_final_cv.py` (`SWW_COUNTRY=SE`), `18_mechanism_data.py` (`SWW_COUNTRY=SE`), `20_direction_variant.py SE`, scans `06`–`08`.
 
-Both: `15_paper_numbers.py` (`SWW_NO_OUT`, `SWW_SE_OUT`) → `sections/generated/`, then `17_graphical_abstract.py`.
+Both: `15_paper_numbers.py` (`SWW_NO_OUT`, `SWW_SE_OUT`) → `sections/generated/`, then `19_figures_v2.py` (concept, mechanisms, error structure, time series, site factors, vehicle) and `17_graphical_abstract.py`.
 
 ## Data
 

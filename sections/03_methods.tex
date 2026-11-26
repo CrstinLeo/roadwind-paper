@@ -2,12 +2,19 @@
 \label{sec:methods}
 
 \subsection{Overview}
-For a roadside station $j$ and a reference station $s$ the hourly wind speed is transferred in four steps,
+Figure~\ref{fig:concept} illustrates the idea. The wind measured at a reference station is first converted to the wind at the height of the roadside sensor over open terrain, then corrected for the roughness around both sites and for the persistent exposure of the reference station, and finally for the shelter of the road corridor; the estimates of all reference stations are then combined. For a roadside station $j$ and a reference station $s$ the hourly wind speed is transferred in four steps,
 \begin{equation}
 U_0 \xrightarrow{\text{height}} U_1 \xrightarrow{\text{roughness}} U_2 \xrightarrow{\text{site factor}} U_3 \xrightarrow{\text{roadside exposure}} U_4 ,
 \label{eq:ladder}
 \end{equation}
 and the estimates from all reference stations are combined (Section~\ref{sec:combine}). Direction-dependent quantities are evaluated in the 16 sectors of the wind-from direction of the vector-mean wind of the reference network, $k(t)$. Each step is evaluated separately, so that its contribution to the error reduction can be read directly. The same model, with the same predictors, is fitted separately in each country.
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=\textwidth]{figures/fig00_concept.pdf}
+\caption{The problem and the predictors. (a) Side view: the reference station measures over open terrain at \SI{10}{m}; above the blending height the wind is independent of the surface; at the road, trees next to the road and the forest of the surrounding landscape reduce the wind at the roadside sensor and at the vehicle. (b) Plan view of the exposure predictors at a roadside station: the near-tree share $T_{100}$ in the upwind sector within \SI{100}{m}, the forest fraction $F_{1000}$ within \SI{1}{km} in all directions, and the angle $\alpha$ between the reference wind and the road axis, which controls the deflection of the wind direction. Schematic, not to scale.}
+\label{fig:concept}
+\end{figure}
 
 \subsection{Height conversion}
 Under neutral stratification over open terrain ($z_{0r}=\SI{0.03}{m}$),
