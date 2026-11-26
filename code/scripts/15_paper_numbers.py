@@ -85,6 +85,13 @@ for pre, P_, O_ in (("no", R["pred_final"], R["obs"]), ("se", SEcv["pred"], SEcv
     assert hb < 0, "text says 'lower than estimated'"
     N[f"{pre}CvRbias"] = f"{100 * b:+.0f}"; N[f"{pre}CvHighObs"] = f"{-100 * hb:.0f}"
 
+# roadside stations where the corrected estimate is worse than the nearest station (Norway)
+_S = pd.read_csv(Path(os.environ.get("SWW_NO_DATA", "/home/claude/no")) / "stations_region.csv"); _S["id"] = _S.id.astype(str)
+_nm = _S.set_index("id").name.reindex(R["meta"]["trv"]).str.title().str.replace("Fv", "Fv~", regex=False).values
+_w = np.where(c["mae"] > c["mae_raw"])[0]
+N["noWorseList"] = "; ".join(f"{_nm[i].replace('Fv~', 'Fv ')} ({c['mae_raw'][i]:.2f}\\,$\\rightarrow$\\,{c['mae'][i]:.2f})" for i in _w[np.argsort(-(c["mae"] - c["mae_raw"])[_w])])
+N["noWorseN"] = len(_w)
+
 # ---------------- site factors (Norway)
 sf = np.exp(R["site_c"].mean(1))
 N.update(noSfMin=f2(sf.min()), noSfMax=f2(sf.max()))
@@ -136,6 +143,12 @@ for path in (Path(os.environ.get("SWW_SE_DATA", "/home/claude/se")) / "features_
                 cors[o].append(np.corrcoef(a[ok], b[ok])[0, 1])
 for o, k in zip(offs, ("Hundred", "TwoFifty", "Km")):
     N[f"along{k}Min"], N[f"along{k}Max"] = f"{min(cors[o]):.2f}", f"{max(cors[o]):.2f}"
+
+# ---------------- direction variant with an untreed channelling term (20_direction_variant.py)
+for pre, path in (("no", NO), ("se", SE)):
+    Dv = pickle.load(open(path / f"dir_open_{pre.upper()}.pkl", "rb"))
+    d_, s_ = paired(Dv["open"]["dir"], Dv["base"]["dir"])
+    N[f"{pre}DirOpen"], N[f"{pre}DirOpenSE"] = f"{d_:+.1f}", f"{s_:.1f}"
 
 # ---------------- transfer
 N.update(seWithNo=f2(np.nanmedian(R["se_with_no_coef"]["mae"])), noWithSe=f2(np.nanmedian((R["no_with_se_coef"]["B"] if "B" in R["no_with_se_coef"] else R["no_with_se_coef"])["mae"])))
@@ -195,7 +208,9 @@ with open(GEN / "tab_coefs.tex", "w") as f:
         fmt = (lambda x: f"${x:+.1f}$") if i >= 5 else (lambda x: f"${x:+.3f}$")
         f.write(f"{n_} & {fmt(no_v[i])} & {fmt(no_f[:, i].min())}\\,…\\,{fmt(no_f[:, i].max())} & {fmt(se_v[i])} & {fmt(se_f[:, i].min())}\\,…\\,{fmt(se_f[:, i].max())} \\\\\n")
     f.write("\\bottomrule\n\\end{tabular}\n")
-N.update(noSmear=f2(R["coef"]["smear"]), seSmear=f2(SEcv["coef"]["smear"]))
+N.update(noSmear=f2(R["coef"]["smear"]), seSmear=f2(SEcv["coef"]["smear"]),
+         noFarFortyPct=f"{100 * (1 - np.exp(0.4 * R['coef']['b'][4])):.0f}", noFarRatio=f"{R['coef']['b'][4] / SEcv['coef']['b'][4]:.1f}",
+         noLadRawBiasAbs=f"{100 * L['rbias_U0'].median():.0f}", seLadRawBiasAbs=f"{100 * lad.rbias.iloc[0]:.0f}")
 
 # ---------------- skill table (both countries)
 with open(GEN / "tab_skill.tex", "w") as f:
