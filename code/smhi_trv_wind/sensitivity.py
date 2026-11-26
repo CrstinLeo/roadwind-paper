@@ -51,6 +51,7 @@ class Spec:
     dir_power: float | None = None      # weight exponent for the direction combination (default: power)
     dir_tree: str | None = None         # tree feature of the direction model (default: tree)
     dir_open: bool = False              # add d2 sin(2 alpha) without tree scaling (terrain channelling at open sites)
+    use_tree: bool = True               # False: drop the near-tree term from the exposure model (ablation)
     roughness: bool = True              # False: skip step 2 (z0 = 0.03 everywhere)
     learner: str = "ols"                # ols | gbm (upper-bound check, station-grouped folds)
 
@@ -136,7 +137,7 @@ class Engine:
         P = pd.DataFrame({s: physics.to_potential(np.exp(lz.loc[s].reindex(kL).values), cfg) for s in self.wsL.columns}, index=self.wsL.index)
         pot = self.wsL * P
         ksite = sector(network_direction(self.wsL, self.wdL), sp.site_nsec)
-        use = (self.wsL.median(1) >= sp.site_min_net) & (self.wsL.notna().sum(1) >= 12)
+        use = (self.wsL.median(1) >= sp.site_min_net) & (self.wsL.notna().sum(1) >= min(self.cfg.site_min_stations, self.wsL.shape[1]))
         L = np.log(pot[use].where(self.wsL[use] >= 0.5)); K = pd.Series(ksite, index=self.wsL.index)[use]
         if sp.site == "none":
             c = pd.DataFrame(0.0, index=self.wsL.columns, columns=np.unique(K))
@@ -180,7 +181,7 @@ class Engine:
         lnU_net = np.log(np.clip(np.nanmean(corr, 1), 0.5, None))[:, None] * np.ones_like(U3)
         tr = tree[:, pj]
         alpha = wrap90(wd_s - self.road[pj][None, :])
-        cols = [np.ones_like(U3), tr]
+        cols = [np.ones_like(U3), tr] if sp.use_tree else [np.ones_like(U3)]
         if sp.use_lnxh:
             cols.append(lnxh[:, pj])
         lnU = np.log(np.clip(U3, 0.5, None)) if "lnU_pair" in sp.extra else lnU_net
@@ -200,11 +201,14 @@ class Engine:
                 cols.append(np.nan_to_num(self._trv_sector(self.Tt[e[2:]])[:, pj]))
             elif e != "lnU_pair":
                 cols.append(np.nan_to_num(ext[e]()))
+        finite = np.ones(U3.shape, bool)
+        for x in cols:
+            finite &= np.isfinite(x)                                   # rows with any missing predictor are not fitted
         X = np.stack([np.nan_to_num(x).astype(np.float32) for x in cols], -1)   # [hour x pair x p], float32 to save memory
         del cols
         y = np.log(np.clip(ws, 0.1, None) / np.clip(U3, 0.1, None))
         A = self.A[:, None]
-        fit = A & (U0 >= sp.fit_min) & (ws > 0.2) & np.isfinite(U3) & np.isfinite(tr) & np.isfinite(lnxh[:, pj]) & np.isfinite(ws)
+        fit = A & (U0 >= sp.fit_min) & (ws > 0.2) & np.isfinite(U3) & np.isfinite(tr) & np.isfinite(lnxh[:, pj]) & np.isfinite(ws) & finite
         trd = tr if sp.dir_tree is None else self._trv_sector(self.Vt[sp.dir_tree])[:, pj]
         s2t = np.sin(np.radians(2 * alpha)) * trd
         dd = wrap180(wd - wd_s)
@@ -226,12 +230,17 @@ class Engine:
             B = np.stack([np.linalg.solve(SX - XtX[j] + 1e-9 * np.eye(p), Sy - Xty[j]) for j in range(n_t)])
             Bd = np.stack([np.linalg.solve(SD - DtD[j] + 1e-9 * np.eye(q), Sd - Dty[j]) for j in range(n_t)])
             b_all = np.linalg.solve(SX, Sy); d_all = np.linalg.solve(SD, Sd)
-            smear = float(np.mean(np.exp(yf - Xf @ b_all)))
+            r_ = np.exp(yf - Xf @ b_all)
+            smear = float(np.mean(r_))
+            Sj, Nj = np.bincount(jf, r_, n_t), np.bincount(jf, minlength=n_t)
+            smear_j = (Sj.sum() - Sj) / (Nj.sum() - Nj)          # Duan factor without the held-out station
+            del r_
         else:
             b_all, d_all = np.asarray(fixed["b"], dtype=float), np.asarray(fixed["d"], dtype=float)
         if fixed is not None:
             B = np.tile(np.asarray(fixed["b"], dtype=float), (n_t, 1)); Bd = np.tile(np.asarray(fixed["d"], dtype=float), (n_t, 1))
             smear = float(fixed["smear"])
+            smear_j = np.full(n_t, smear)
         yhat = np.einsum("hpk,pk->hp", X, B[pj].astype(np.float32))
         if sp.learner == "gbm":
             from sklearn.ensemble import HistGradientBoostingRegressor
@@ -246,7 +255,8 @@ class Engine:
                 te = grp[jall] == g
                 yh = yhat.reshape(-1); yh[te] = m.predict(Xall[te])
             smear = float(np.mean(np.exp(yf - yhat[fit])))
-        U4 = U3 * np.exp(yhat) * smear
+            smear_j = np.full(n_t, smear)
+        U4 = U3 * np.exp(yhat) * smear_j[pj][None, :]
         wd4 = (wd_s + np.einsum("hpk,pk->hp", Xd, Bd[pj])) % 360
         # combination
         W = np.zeros((len(pj), n_t)); Wd = np.zeros((len(pj), n_t))
@@ -297,6 +307,7 @@ class Engine:
             out[name] = dict(mae=mae, mae_raw=mraw, bias_log=np.nanmean(le, 0), rmse_log=np.sqrt(np.nanmean(le ** 2, 0)),
                              dir=np.nanmean(de, 0), sum_abs=np.nansum(err, 0), n=np.sum(np.isfinite(err), 0),
                              sum_raw=np.nansum(np.where(per[:, None] & np.isfinite(self.tws) & np.isfinite(U0n) & np.isfinite(U), np.abs(U0n - self.tws), np.nan), 0),
+                             n_raw=np.sum(per[:, None] & np.isfinite(self.tws) & np.isfinite(U0n) & np.isfinite(U), 0),
                              sum_dir=np.nansum(de, 0), n_dir=np.sum(np.isfinite(de), 0),
                              sum_dir_raw=np.nansum(de0, 0), n_dir_raw=np.sum(np.isfinite(de0), 0),
                              sum_le=np.nansum(le, 0), sum_le2=np.nansum(le ** 2, 0), n_le=np.sum(np.isfinite(le), 0))
@@ -315,7 +326,7 @@ def cv(engine: "Engine", sp: Spec, n_blocks: int = 4, groups: dict | None = None
     H = engine.H
     blocks = np.array_split(np.arange(len(H)), n_blocks)
     A0 = engine.A
-    keys = ("sum_abs", "n", "sum_raw", "sum_dir", "n_dir", "sum_dir_raw", "n_dir_raw", "sum_le", "sum_le2", "n_le")
+    keys = ("sum_abs", "n", "sum_raw", "n_raw", "sum_dir", "n_dir", "sum_dir_raw", "n_dir_raw", "sum_le", "sum_le2", "n_le")
     names = ["B"] + [f"B:{g}" for g in (groups or {})]
     acc = {nm: None for nm in names}
     pred = None
@@ -337,7 +348,7 @@ def cv(engine: "Engine", sp: Spec, n_blocks: int = 4, groups: dict | None = None
 
     def pack(a):
         with np.errstate(invalid="ignore", divide="ignore"):
-            return dict(mae=a["sum_abs"] / a["n"], mae_raw=a["sum_raw"] / a["n"], dir=a["sum_dir"] / a["n_dir"],
+            return dict(mae=a["sum_abs"] / a["n"], mae_raw=a["sum_raw"] / a["n_raw"], dir=a["sum_dir"] / a["n_dir"],
                         dir_raw=a["sum_dir_raw"] / a["n_dir_raw"], n=a["n"],
                         bias_log=a["sum_le"] / a["n_le"], rmse_log=np.sqrt(a["sum_le2"] / a["n_le"]))
     out = pack(acc["B"])

@@ -123,7 +123,7 @@ class Settings:
         """Trøndelag-Dovre study region (MET Norway / Avinor reference stations, Statens vegvesen roadside stations);
         2023 trains the site factors, 2024-01 to 2025-11 is the test period."""
         base = dict(country="NO", train_start="2023-01-01", train_end="2023-12-31 23:00", test_start="2024-01-01 00:00",
-                    test_end="2025-11-24 23:00", z_trv=10.0, min_trv_hours=2000, site_min_stations=10)
+                    test_end="2025-11-24 23:00", z_trv=10.0, min_trv_hours=2000, site_min_stations=12)
         base.update(kw)
         return cls(**base)
 

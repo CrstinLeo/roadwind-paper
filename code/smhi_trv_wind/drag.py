@@ -6,7 +6,7 @@ Two drag-area models C_dA(beta) of the air attack (yaw) angle beta are provided:
     tractor-semitrailers,  C_dA(beta) = C_dA(0) + a1 beta + a2 beta^2 + a3 beta^3  [m2, beta in degrees],
     a1 = 0.030042, a2 = 0.040817, a3 = -0.002130 (VECTO user manual, "Speed dependent correction"),
     with C_dA(0) = 5.8 m2, the typical certified value of EU 4x2 long-haul tractor-trailers (ICCT, from EEA data).
-    The cubic peaks at beta = 13.4 deg; beyond the peak the value is held constant (the polynomial is fitted to
+    The cubic peaks at beta = 13.1 deg; beyond the peak the value is held constant (the polynomial is fitted to
     small yaw angles only).
 "model1": Model 1 of Askerdal, Fredriksson & Laine (2024, Vehicle System Dynamics 62(5)),
     C_dA(beta) = c1 cos^2(beta) (A_f cos(beta) + A_s sin(beta)), A_f = 10.3 m2, A_s = 57.6 m2, scaled to the same
