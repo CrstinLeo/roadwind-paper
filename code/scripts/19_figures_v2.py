@@ -221,18 +221,14 @@ def fig_site_factors():
     S = pd.read_csv(NOD / "stations_region.csv"); S["id"] = S.id.astype(str); S = S.set_index("id")
     no = np.exp(R["site_c"].mean(axis=1)).dropna()
     no.index = [str(S.loc[i, "name"]).title().replace(" Iii", " III").replace(" Ii", " II") if i in S.index else i for i in no.index]
-    se = np.exp(SEres.site.c.mean(axis=1)).dropna()
-    se.index = [str(SEres.smhi.name.get(i, i)) for i in se.index]
-    fig, ax = plt.subplots(1, 2, figsize=(W2, 3.6), gridspec_kw=dict(width_ratios=[len(no), len(se)]))
-    for a, (country, f) in zip(ax, (("Norway", no), ("Sweden", se))):
-        f = f.sort_values()
-        a.hlines(range(len(f)), 1, f.values, color=C[country], lw=1.2); a.plot(f.values, range(len(f)), "o", ms=3.5, color=C[country])
-        a.axvline(1, color=INK, lw=0.6); a.set_xscale("log"); a.set_xticks([0.5, 1, 2]); a.set_xticklabels(["0.5", "1", "2"])
-        a.xaxis.set_minor_formatter(matplotlib.ticker.NullFormatter())
-        a.set_yticks(range(len(f))); a.set_yticklabels(f.index, fontsize=5.8); a.set_xlabel("site factor $e^{c_s}$ (exposure relative to network)")
-        a.set_title(country, loc="left", color=C[country]); a.grid(axis="y", visible=False)
-    label(ax[0], "a", x=-0.55, y=1.0); label(ax[1], "b", x=-0.75, y=1.0)
-    fig.tight_layout(w_pad=2.0)
+    fig, a = plt.subplots(figsize=(W2 * 0.55, 3.6))
+    f = no.sort_values()
+    a.hlines(range(len(f)), 1, f.values, color=ORANGE, lw=1.2); a.plot(f.values, range(len(f)), "o", ms=3.5, color=ORANGE)
+    a.axvline(1, color=INK, lw=0.6); a.set_xscale("log"); a.set_xticks([0.5, 1, 2]); a.set_xticklabels(["0.5", "1", "2"])
+    a.xaxis.set_minor_formatter(matplotlib.ticker.NullFormatter())
+    a.set_yticks(range(len(f))); a.set_yticklabels(f.index, fontsize=6); a.set_xlabel("site factor $e^{c_s}$ (exposure relative to network)")
+    a.grid(axis="y", visible=False)
+    fig.tight_layout()
     save(fig, "fig12_site_factors")
 
 
@@ -277,6 +273,52 @@ def fig_vehicle():
     save(fig, "fig06_vehicle_validation")
 
 
+# ------------------------------------------------------------------------------------------------ energy
+def fig_energy():
+    EN = pickle.load(open(NO / "energy.pkl", "rb"))
+    fig, ax = plt.subplots(1, 4, figsize=(W2, 2.35), gridspec_kw=dict(width_ratios=[0.8, 1.1, 1.25, 0.9]))
+    a = ax[0]; w = 0.36
+    for i, c in enumerate(("Norway", "Sweden")):
+        o = EN[(c, 80, "vecto")]; E0 = o["E0"]
+        vals = [100 * (np.mean(o[k]) / E0 - 1) for k in ("true_one", "head_only_one", "cross_only")]
+        a.bar(np.arange(3) + (i - 0.5) * w, vals, w, color=C[c], alpha=0.85 if i == 0 else 0.55, label=c)
+    a.set_xticks(range(3)); a.set_xticklabels(["total", "head/\ntail", "cross-\nwind"], fontsize=6.5)
+    a.set_ylabel("mean wind penalty [%]"); a.legend(frameon=False, fontsize=6.3, loc="upper center", bbox_to_anchor=(0.62, 1.0)); a.grid(axis="x", visible=False)
+    a = ax[1]
+    for c in ("Norway", "Sweden"):
+        o = EN[(c, 80, "vecto")]; E0 = o["E0"]; m = o["metrics"]
+        df = pd.DataFrame(dict(s=m["corrected"]["station"], t=o["true_one"], c=m["corrected"]["one_est"], r=m["nearest station"]["one_est"]))
+        pen = 100 * (df.groupby("s").mean() / E0 - 1)
+        a.scatter(pen.t, pen.r, s=9, facecolors="none", edgecolors=LIGHT, lw=0.7)
+        a.scatter(pen.t, pen.c, s=9, color=C[c], lw=0, alpha=0.85)
+    a.scatter([], [], s=9, facecolors="none", edgecolors=LIGHT, label="nearest station"); a.scatter([], [], s=9, color=INK, label="corrected")
+    lim = 50; a.plot([0, lim], [0, lim], color=INK, lw=0.6); a.set_xlim(0, lim); a.set_ylim(0, lim + 15)
+    a.set_xlabel("observed road penalty [%]"); a.set_ylabel("estimated road penalty [%]"); a.legend(frameon=False, loc="upper left", fontsize=6.5)
+    a = ax[2]; names = [("no wind", LIGHT, "no wind"), ("nearest station", MUTED, "nearest station"), ("corrected", ORANGE, "corrected")]
+    groups = [("Norway", "mae_one", "all hours"), ("Norway", "strong_mae", "strong\nwind"), ("Sweden", "mae_one", "all hours"), ("Sweden", "strong_mae", "strong\nwind")]
+    for i, (c, key, _) in enumerate(groups):
+        m = EN[(c, 80, "vecto")]["metrics"]
+        for k, (nm, col, lab) in enumerate(names):
+            cc = (BLUE if c == "Sweden" else ORANGE) if nm == "corrected" else col
+            a.bar(i + (k - 1) * 0.27, m[nm][key], 0.27, color=cc, label=lab if i == 0 else None)
+    a.set_xticks(range(4)); a.set_xticklabels([g[2] for g in groups], fontsize=6.5)
+    a.text(0.5, -0.3, "Norway", transform=a.get_xaxis_transform(), ha="center", color=ORANGE, fontsize=7)
+    a.text(2.5, -0.3, "Sweden", transform=a.get_xaxis_transform(), ha="center", color=BLUE, fontsize=7)
+    a.set_ylabel("energy MAE [kWh/100 km]"); a.legend(frameon=False, fontsize=6.3, loc="upper left"); a.grid(axis="x", visible=False)
+    a = ax[3]; sp = np.array([60, 70, 80, 90])
+    for c in ("Norway", "Sweden"):
+        pk = [np.mean(EN[(c, v, "vecto")]["true_one"]) - EN[(c, v, "vecto")]["E0"] for v in sp]
+        a.plot(sp, pk, "-o", ms=3, color=C[c], label=c)
+        for v, y, o in zip(sp, pk, [EN[(c, v, "vecto")] for v in sp]):
+            if c == "Norway":
+                a.text(v, y + 0.12, f"{100 * (np.mean(o['true_one']) / o['E0'] - 1):.0f}%", ha="center", fontsize=6, color=MUTED)
+    a.set_xlabel("vehicle speed [km h$^{-1}$]"); a.set_ylabel("wind penalty [kWh/100 km]"); a.set_xticks(sp)
+    fig.tight_layout(w_pad=1.6)
+    for a_, s_ in zip(ax, "abcd"):
+        label(a_, s_, x=-0.42 if s_ in "ad" else -0.3)
+    save(fig, "fig13_energy")
+
+
 if __name__ == "__main__":
-    for f in (fig_concept, fig_mechanisms, fig_error_structure, fig_timeseries, fig_site_factors, fig_vehicle):
+    for f in (fig_concept, fig_mechanisms, fig_error_structure, fig_timeseries, fig_site_factors, fig_vehicle, fig_energy):
         f()

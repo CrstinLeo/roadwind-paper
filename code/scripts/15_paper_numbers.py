@@ -150,6 +150,52 @@ for pre, path in (("no", NO), ("se", SE)):
     d_, s_ = paired(Dv["open"]["dir"], Dv["base"]["dir"])
     N[f"{pre}DirOpen"], N[f"{pre}DirOpenSE"] = f"{d_:+.1f}", f"{s_:.1f}"
 
+
+# ---------------- air-drag energy (22_energy.py): VECTO crosswind correction, C_dA(0) = 5.8 m2, 80 km/h
+EN = pickle.load(open(NO / "energy.pkl", "rb"))
+BET_TOTAL = 96.0          # kWh/100 km, mean real-world consumption of battery-electric trucks (Le Corguille et al. 2025)
+N["enEzero"] = f"{EN[('Norway', 80, 'vecto')]['E0']:.1f}"
+N["enEzeroSixty"], N["enEzeroNinety"] = (f"{EN[('Norway', k, 'vecto')]['E0']:.0f}" for k in (60, 90))
+N["enBetTotal"] = f"{BET_TOTAL:.0f}"
+for c, pre in (("Norway", "No"), ("Sweden", "Se")):
+    for model, suf in (("vecto", ""), ("model1", "MOne")):
+        o = EN[(c, 80, model)]; E0 = o["E0"]; m = o["metrics"]
+        N[f"enAdd{pre}{suf}"] = f"{100 * (np.mean(o['true_one']) / E0 - 1):.1f}"
+        N[f"enSs{pre}Cor{suf}"] = f"{m['corrected']['ss_one']:.2f}"; N[f"enSs{pre}Raw{suf}"] = f"{m['nearest station']['ss_one']:.2f}"
+        N[f"enBias{pre}Raw{suf}"] = f"{100 * m['nearest station']['mean_bias_med']:+.1f}"
+        if model != "vecto":
+            continue
+        N[f"enAddKwh{pre}"] = f"{np.mean(o['true_one']) - E0:.1f}"
+        N[f"enAddShareTotal{pre}"] = f"{100 * (np.mean(o['true_one']) - E0) / BET_TOTAL:.0f}"
+        N[f"enHead{pre}"] = f"{100 * (np.mean(o['head_only_one']) / E0 - 1):.1f}"
+        N[f"enCross{pre}"] = f"{100 * (np.mean(o['cross_only']) / E0 - 1):.1f}"
+        q = np.percentile(100 * (o["true_one"] / E0 - 1), [5, 95]); N[f"enHourQfive{pre}"], N[f"enHourQninetyfive{pre}"] = f"{q[0]:.0f}", f"{q[1]:.0f}"
+        qr = np.percentile(100 * (o["true_rt"] / E0 - 1), 95); N[f"enRtQninetyfive{pre}"] = f"{qr:.0f}"
+        for k, nm in (("no wind", "None"), ("nearest station", "Raw"), ("corrected", "Cor")):
+            N[f"enMae{pre}{nm}"] = f"{m[k]['mae_one']:.1f}"; N[f"enMaeRt{pre}{nm}"] = f"{m[k]['mae_rt']:.1f}"
+            N[f"enBias{pre}{nm}"] = f"{100 * m[k]['mean_bias_med']:+.1f}"; N[f"enStrong{pre}{nm}"] = f"{m[k]['strong_mae']:.1f}"
+        # long-term wind penalty of each road (mean over hours and both directions), true vs estimated
+        df = pd.DataFrame(dict(s=m["corrected"]["station"], t=o["true_one"], c=m["corrected"]["one_est"], r=m["nearest station"]["one_est"]))
+        pen = 100 * (df.groupby("s").mean() / E0 - 1)
+        qq = np.percentile(pen.t, [0, 50, 90, 100])
+        N.update({f"enRoadMin{pre}": f"{qq[0]:.0f}", f"enRoadMed{pre}": f"{qq[1]:.0f}", f"enRoadPninety{pre}": f"{qq[2]:.0f}",
+                  f"enRoadMax{pre}": f"{qq[3]:.0f}", f"enRoadPninetyKwh{pre}": f"{qq[2] / 100 * E0:.0f}"})
+        for k in ("c", "r"):
+            nm = "Cor" if k == "c" else "Raw"
+            N[f"enRoadCorr{pre}{nm}"] = f"{np.corrcoef(pen.t, pen[k])[0, 1]:.2f}"
+            N[f"enRoadMae{pre}{nm}"] = f"{np.mean(np.abs(pen[k] - pen.t)):.1f}"
+            N[f"enRoadMean{pre}{nm}"] = f"{pen[k].mean():.1f}"
+        N[f"enRoadMean{pre}True"] = f"{pen.t.mean():.1f}"
+    for v_kmh, w in ((60, "Sixty"), (90, "Ninety")):
+        o = EN[(c, v_kmh, "vecto")]
+        N[f"enAdd{pre}{w}"] = f"{100 * (np.mean(o['true_one']) / o['E0'] - 1):.0f}"
+        N[f"enSs{pre}Cor{w}"] = f"{o['metrics']['corrected']['ss_one']:.2f}"
+for model, suf in (("vecto", ""), ("model1", "MOne")):
+    VE = EN[("vehicle", model)]
+    for k, nm in (("no wind", "None"), ("nearest MET/Avinor station", "Ref"), ("nearest road weather station", "Road"), ("MET Nordic", "Mn"), ("corrected", "Cor")):
+        N[f"enVeh{nm}{suf}"] = f"{VE[k]['mae_hour']:.1f}"; N[f"enVehBias{nm}{suf}"] = f"{100 * VE[k]['bias']:+.0f}"
+    N[f"enVehTrue{suf}"] = f"{VE['true_mean']:.1f}"
+
 # ---------------- transfer
 N.update(seWithNo=f2(np.nanmedian(R["se_with_no_coef"]["mae"])), noWithSe=f2(np.nanmedian((R["no_with_se_coef"]["B"] if "B" in R["no_with_se_coef"] else R["no_with_se_coef"])["mae"])))
 

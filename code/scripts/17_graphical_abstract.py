@@ -55,13 +55,12 @@ ax.add_patch(Rectangle((xr + 11.7, 10.0), 1.5, 2.4, fc=INK, ec="none"))
 for xw in (xr + 7.4, xr + 10.6, xr + 12.6):
     ax.add_patch(plt.Circle((xw, 9.9), 0.55, color=INK))
 ax.annotate("", xy=(xr + 9.5, 15.6), xytext=(xr + 9.5, 22.5), arrowprops=dict(arrowstyle="-|>", lw=2.2, color=BLUE))
-ax.text(xr + 9.0, 23.2, "wind and air drag\non a 200–300 m\nroad segment", ha="center", va="bottom", fontsize=13, color=INK)
+ax.text(xr + 9.0, 23.2, "crosswind and\nair-drag energy\non the road", ha="center", va="bottom", fontsize=13, color=INK)
 
 # ---- bottom: results
-res = (f"median roadside wind-speed error (out of sample):   Norway {N['noCvRaw']} → {N['noCvMed']} m/s   ·   "
-       f"Sweden {N['seCvRaw']} → {N['seCvMed']} m/s\n"
-       f"median air-drag error, tractor–semitrailer at 80 km/h:   Norway {N['noDragRaw']} → {N['noDragModel']} %   ·   "
-       f"Sweden {N['seDragRaw']} → {N['seDragModel']} %")
+res = (f"wind penalty on the air-drag energy of a tractor–semitrailer (80 km/h):  mean +{N['enAddNo']} %, single roads {N['enRoadMinNo']}–{N['enRoadMaxNo']} %\n"
+       f"nearest station: penalty ×2, hourly skill {N['enSsNoRaw'].replace('$-$', '−')}   ·   corrected: road penalties r = {N['enRoadCorrNoCor']}, "
+       f"wind error {N['noCvRaw']} → {N['noCvMed']} m/s")
 ax.text(50, 3.6, res, ha="center", va="center", fontsize=13.5, color=INK, linespacing=1.6)
 
 out = REPO / "figures" / "graphical_abstract.pdf"
