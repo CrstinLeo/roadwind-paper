@@ -21,8 +21,9 @@ G = {"leaf-on (May-Sep)": np.isin(month, [5, 6, 7, 8, 9]), "leaf-off (Nov-Mar)":
 old = R["cv_final"]
 c = cv(E, RECOMMENDED, 8, groups=G, keep_pred=True)
 R["pred_final"] = c.pop("pred"); R["cv_final"] = c
-R["obs"] = dict(ws=E.tws.astype(np.float32), wd=E.twd.astype(np.float32), road=E.road, hours=E.H)
-print("model MAE unchanged:", np.allclose(old["mae"], c["mae"], equal_nan=True),
+R["obs"] = dict(ws=E.tws.astype(np.float32), wd=E.twd.astype(np.float32), road=E.road, ids=list(E.TM.index), lat=E.TM.lat.values, lon=E.TM.lon.values,
+                name=(E.TM["name"].values if "name" in E.TM else None), hours=E.H)
+print("model MAE vs previous run: max |diff|", np.nanmax(np.abs(old["mae"] - c["mae"])).round(4),
       "| raw median", np.nanmedian(old["mae_raw"]).round(3), "->", np.nanmedian(c["mae_raw"]).round(3),
       "| zero raw", int((c["mae_raw"] == 0).sum()), flush=True)
 pickle.dump(R, open(OUT / "norway_results.pkl", "wb"))
